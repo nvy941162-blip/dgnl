@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Tạo Đề & Thi Thử Đánh Giá Năng Lực (ĐGNL)</title>
+  <link rel="stylesheet" href="/css/style.css?v=2026.2">
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <!-- Chart.js for interactive Radar chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <a href="#" class="brand" onclick="app.showTab('dashboard'); return false;">
+      <span>🏛️ ĐGNL Assessment Platform</span>
+      <span class="brand-badge">V-ACT 2026 & SPT 8 Môn</span>
+    </a>
+    <nav class="nav-links">
+      <button class="nav-btn active" id="btn-tab-dashboard" onclick="app.showTab('dashboard')">
+        🏠 Trang Chủ
+      </button>
+
+      <!-- DROPDOWN MENU TẠO ĐỀ & THI THỬ -->
+      <div class="nav-dropdown" id="nav-exam-dropdown">
+        <button class="nav-btn nav-dropdown-toggle" id="btn-tab-exam-dropdown" onclick="app.toggleExamDropdown(event)">
+          📋 Tạo & Thi Thử <span class="dropdown-caret">▼</span>
+        </button>
+        <div class="dropdown-menu-box" id="dropdown-menu-box">
+          <div class="dropdown-header">🎯 KỲ THI V-ACT (ĐHQG-HCM)</div>
+          <a href="#" class="dropdown-item" onclick="examRunner.loadAndStartExam('vact_sample_2026'); app.closeExamDropdown(); return false;">
+            <span class="dropdown-item-icon">🏛️</span>
+            <div class="dropdown-item-text">
+              <strong>V-ACT 2026 (120 Câu - 150 Phút)</strong>
+              <small>Đề tham khảo chính thức 2026 (22 trang)</small>
+            </div>
+            <span class="badge badge-primary" style="font-size: 0.7rem;">Mới 2026</span>
+          </a>
+          <a href="#" class="dropdown-item" onclick="examRunner.loadAndStartExam('dgnl_benchmark_standard_2025'); app.closeExamDropdown(); return false;">
+            <span class="dropdown-item-icon">📝</span>
+            <div class="dropdown-item-text">
+              <strong>V-ACT Chuẩn Hóa (120 Câu - 150 Phút)</strong>
+              <small>Đề thi chuẩn cấu trúc ĐGNL</small>
+            </div>
+          </a>
+
+          <div class="dropdown-divider"></div>
+          <div class="dropdown-header">🎓 KỲ THI SPT (ĐH SƯ PHẠM HÀ NỘI - MÃ ĐỀ 075)</div>
+          <div class="dropdown-grid-subjects">
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_math'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">📐</span>
+              <div class="subitem-text"><strong>Toán học</strong> <small>(90')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_english'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">🇬🇧</span>
+              <div class="subitem-text"><strong>Tiếng Anh</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_chemistry'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">🧪</span>
+              <div class="subitem-text"><strong>Hóa học</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_geography'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">🌍</span>
+              <div class="subitem-text"><strong>Địa lí</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_history'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">📜</span>
+              <div class="subitem-text"><strong>Lịch sử</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_civics_law'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">⚖️</span>
+              <div class="subitem-text"><strong>GDKT & Pháp luật</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_tech_industry'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">⚙️</span>
+              <div class="subitem-text"><strong>Công nghệ CN</strong> <small>(60')</small></div>
+            </a>
+            <a href="#" class="dropdown-subitem" onclick="examRunner.loadAndStartExam('spt_sample_tech_agriculture'); app.closeExamDropdown(); return false;">
+              <span class="subitem-icon">🌾</span>
+              <div class="subitem-text"><strong>Công nghệ NN</strong> <small>(60')</small></div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <button class="nav-btn" id="btn-tab-generator" onclick="app.showTab('generator')">
+        🤖 LangGraph Sinh Đề
+      </button>
+      <button class="nav-btn" id="btn-tab-analytics" onclick="app.showTab('analytics')">
+        📊 Phân Tích Năng Lực
+      </button>
+      <button class="nav-btn" id="btn-tab-settings" onclick="app.showTab('settings')">
+        ⚙️ Cài Đặt
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- TAB 1: DASHBOARD (HOME & EXAM SELECTION) -->
+    <section id="tab-dashboard">
+      <div class="hero-banner">
+        <div class="hero-content">
+          <h1>Hệ Thống Khảo Thí Đánh Giá Năng Lực</h1>
+          <p>
+            Tạo đề thông minh bằng <strong>Hội đồng Tác tử LangGraph</strong> & Nền tảng thi thử trực tuyến
+            chuẩn hóa cấu trúc ĐHQG: <strong>120 câu hỏi - 150 phút - Thang điểm 1200 theo trọng số IRT</strong>.
+          </p>
+          <div class="hero-tags">
+            <span class="tag-pill">📖 Ngôn ngữ (400đ)</span>
+            <span class="tag-pill">📐 Toán & Logic & Số liệu (300đ)</span>
+            <span class="tag-pill">🔬 Giải quyết vấn đề (500đ)</span>
+            <span class="tag-pill">🕸️ Radar Chart 10 Năng Lực</span>
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-warning" style="padding: 1rem 1.75rem; font-size: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.25);" onclick="examRunner.startBenchmarkExam()">
+            🚀 Vào Thi Thử Ngay (150 Phút)
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-icon" style="background: #e0e7ff; color: #4338ca;">📝</div>
+          <div class="stat-info">
+            <h3>Cấu trúc bài thi</h3>
+            <p>120 Câu trắc nghiệm</p>
+          </div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-icon" style="background: #fef3c7; color: #d97706;">⏱️</div>
+          <div class="stat-info">
+            <h3>Thời gian làm bài</h3>
+            <p>150 Phút (Đếm ngược)</p>
+          </div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-icon" style="background: #dcfce7; color: #15803d;">🎯</div>
+          <div class="stat-info">
+            <h3>Thang điểm khảo thí</h3>
+            <p>1200 Điểm (Trọng số IRT)</p>
+          </div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-icon" style="background: #fce7f3; color: #be185d;">🤖</div>
+          <div class="stat-info">
+            <h3>Công nghệ sinh đề</h3>
+            <p>LangGraph Multi-Agent</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <h2 style="font-size: 1.25rem;">Danh Sách Đề Thi Khảo Nghiệm Khả Dụng</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Đề mẫu V-ACT 2026, 8 Môn tham khảo SPT ĐH Sư phạm Hà Nội & Đề AI sinh</p>
+          </div>
+          <button class="btn btn-primary" onclick="app.showTab('generator')">
+            + Sinh Đề Mới Bằng AI
+          </button>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="exam-filters-bar">
+          <button class="filter-tab active" id="filter-all" onclick="app.setExamFilter('all')">
+            🌟 Tất Cả Đề Thi
+          </button>
+          <button class="filter-tab" id="filter-vact" onclick="app.setExamFilter('vact')">
+            🎯 V-ACT 2026 (ĐHQG)
+          </button>
+          <button class="filter-tab" id="filter-spt" onclick="app.setExamFilter('spt')">
+            🎓 SPT ĐH Sư Phạm (8 Môn)
+          </button>
+          <button class="filter-tab" id="filter-ai" onclick="app.setExamFilter('ai')">
+            🤖 Đề Do AI Sinh
+          </button>
+        </div>
+
+        <div id="exams-list-container">
+          <p style="color: var(--text-muted);">Đang tải danh sách đề thi...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: EXAM ROOM (THI THỬ CHUẨN HÓA) -->
+    <section id="tab-exam" style="display: none;">
+      <!-- Top Action Bar -->
+      <div class="card" style="padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+          <h3 id="exam-title-display" style="font-size: 1.1rem; color: var(--primary);">Đề thi ĐGNL Chuẩn</h3>
+          <span style="font-size: 0.85rem; color: var(--text-muted);" id="exam-progress-display">Tiến độ: 0/120 câu</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div class="timer-badge" id="exam-timer-display">
+            ⏱️ <span id="timer-minutes">150</span>:<span id="timer-seconds">00</span>
+          </div>
+          <button class="btn btn-success" onclick="examRunner.confirmSubmitExam()">
+            📤 Nộp Bài Thi
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Split Layout -->
+      <div class="exam-layout">
+        <!-- Panel 1: Ngữ cảnh / Bài đọc / Biểu đồ số liệu -->
+        <div class="exam-panel">
+          <div class="panel-header">
+            <span>📑 Ngữ Liệu & Biểu Đồ Minh Họa</span>
+            <span class="badge badge-secondary" id="context-tag">Đọc hiểu / Số liệu</span>
+          </div>
+          <div class="panel-content" id="passage-container">
+            <div class="passage-box" id="passage-text">
+              Không có bài đọc dài kèm theo cho câu hỏi này. Thí sinh đọc kỹ yêu cầu và chọn phương án trả lời đúng.
+            </div>
+            <div id="chart-image-container" class="chart-box-wrapper" style="display: none;">
+              <div class="chart-img-overlay-wrapper" onclick="imageZoomViewer.openCurrentChart()" title="Nhấp để phóng to toàn màn hình">
+                <img id="chart-image-display" src="" alt="Biểu đồ minh họa" class="chart-preview-img">
+                <div class="chart-hover-hint">
+                  <span>🔍 Nhấp để phóng to toàn màn hình</span>
+                </div>
+              </div>
+              <div class="chart-actions-bar">
+                <button type="button" class="btn btn-primary btn-sm" onclick="imageZoomViewer.openCurrentChart()">
+                  🔍 Phóng To Hình Ảnh (Zoom Chi Tiết)
+                </button>
+                <span class="chart-zoom-subtext">Hỗ trợ phóng to tới 400% & kéo rê chuột</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Câu hỏi & Phương án trả lời -->
+        <div class="exam-panel">
+          <div class="panel-header">
+            <span id="question-header-num">Câu hỏi số 1</span>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button class="btn btn-outline" id="btn-flag-toggle" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="examRunner.toggleFlagCurrent()">
+                🚩 Đánh dấu xem lại
+              </button>
+              <span class="badge badge-primary" id="question-domain-badge">Tiếng Việt</span>
+            </div>
+          </div>
+          <div class="panel-content">
+            <div class="question-meta">
+              <span style="font-size: 0.85rem; color: var(--text-muted);" id="question-points-badge">Trọng số: 10.0 điểm</span>
+              <span class="badge badge-warning" id="question-difficulty-badge">Thông hiểu</span>
+            </div>
+
+            <div class="question-text" id="question-prompt-text">
+              Đang tải nội dung câu hỏi...
+            </div>
+
+            <div class="options-list" id="question-options-list">
+              <!-- Render options dynamically (Multiple Choice, True/False, Short Answer, Essay) -->
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+              <button class="btn btn-outline" id="btn-prev-q" onclick="examRunner.prevQuestion()">
+                ⬅️ Câu Trước
+              </button>
+              <button class="btn btn-primary" id="btn-next-q" onclick="examRunner.nextQuestion()">
+                Câu Tiếp Theo ➡️
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 3: Question Pallet (Dynamic sections) -->
+        <div class="exam-panel">
+          <div class="panel-header">
+            <span id="palette-header-title">📋 Danh Sách Câu Hỏi</span>
+            <span style="font-size: 0.8rem; font-weight: normal;">(Bấm để nhảy câu)</span>
+          </div>
+          <div class="panel-content" style="padding: 0.75rem;" id="palette-sections-container">
+            <!-- Dynamic sections rendered by examRunner.renderPalette() -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: LANGGRAPH GENERATOR STUDIO -->
+    <section id="tab-generator" style="display: none;">
+      <!-- CARD 1: TẠO ĐỀ THI 120 CÂU TOÀN DIỆN BẰNG AI VÀ VÀO THI NGAY -->
+      <div class="card" style="border: 2px solid var(--primary); background: #ffffff; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h2 style="font-size: 1.4rem; color: var(--primary);">
+              🚀 TẠO ĐỀ THI HOÀN CHỈNH 120 CÂU BẰNG AI (CHUẨN ĐGNL ĐHQG)
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem;">
+              Tự động sinh trọn vẹn 120 câu hỏi (Ngôn ngữ 40c, Logic/Số liệu 30c, Giải quyết vấn đề 50c), vẽ biểu đồ mới, tính trọng số IRT 1200 điểm và <strong>cho phép vào thi thử ngay lập tức</strong>!
+            </p>
+          </div>
+          <span class="badge badge-primary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">120 Câu - 150 Phút - 1200đ</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Tên đề thi hiển thị:</label>
+            <input type="text" id="full-exam-title-input" value="Đề Thi ĐGNL Số 02 - Luyện Thi Bứt Phá Điểm Số" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem; font-size: 0.95rem;">
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Chủ đề định hướng bài đọc & số liệu:</label>
+            <input type="text" id="full-exam-theme-input" value="Khoa học, Xã hội, Biến đổi khí hậu & Đổi mới kinh tế" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem; font-size: 0.95rem;">
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <button class="btn btn-warning" id="btn-start-full-120" style="padding: 0.85rem 1.75rem; font-size: 1.05rem; font-weight: 700;" onclick="generatorStudio.startFull120Generation()">
+            ⚡ Bắt Đầu Tạo Đề 120 Câu Bằng AI
+          </button>
+          <span id="full-exam-status-text" style="color: var(--text-muted); font-size: 0.95rem;">Sẵn sàng tạo đề thi hoàn chỉnh.</span>
+        </div>
+
+        <!-- Progress Bar Container -->
+        <div id="full-exam-progress-box" style="display: none; margin-top: 1.5rem; background: #f8fafc; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong id="full-progress-step" style="color: var(--primary);">Đang chuẩn bị luồng tác tử...</strong>
+            <span id="full-progress-percent" style="font-weight: 700; color: var(--primary); font-size: 1.1rem;">0%</span>
+          </div>
+          <div style="background: #e2e8f0; border-radius: 1rem; height: 14px; overflow: hidden; margin-bottom: 0.5rem;">
+            <div id="full-progress-bar" style="background: linear-gradient(90deg, #4f46e5, #0ea5e9, #10b981); width: 0%; height: 100%; transition: width 0.3s;"></div>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;" id="full-progress-counter">
+            0 / 120 câu hỏi đã hoàn tất
+          </div>
+          
+          <!-- Live LangGraph Council Logs Stream -->
+          <div style="border-top: 1px dashed var(--border); padding-top: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #475569;">📡 Luồng Thảo Luận & Xử Lý Của Hội Đồng Tác Tử LangGraph:</span>
+            <div id="full-exam-live-logs" style="margin-top: 0.4rem; max-height: 160px; overflow-y: auto; background: #ffffff; border: 1px solid var(--border); border-radius: 0.4rem; padding: 0.6rem; font-size: 0.85rem;">
+              <div style="color: var(--text-muted); font-style: italic;">Đang chờ kích hoạt luồng tác tử...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ready to Start Exam Banner -->
+        <div id="full-exam-ready-banner" style="display: none; margin-top: 1.5rem; background: #f0fdf4; border: 2px solid var(--success); border-radius: 0.75rem; padding: 1.5rem; text-align: center;">
+          <h3 style="color: var(--success); font-size: 1.3rem; margin-bottom: 0.5rem;">🎉 ĐÃ TẠO THÀNH CÔNG ĐỀ THI 120 CÂU CHUẨN ĐGNL!</h3>
+          <p style="color: #334155; margin-bottom: 1.25rem;" id="full-exam-ready-desc">
+            Bộ đề thi gồm đầy đủ 120 câu trắc nghiệm (Ngôn ngữ 40c, Logic/Số liệu 30c, Giải quyết vấn đề 50c) đã được Critic Agent nghiệm thu và phân bổ trọng số 1200 điểm.
+          </p>
+          <div style="display: flex; justify-content: center; gap: 1rem;">
+            <button class="btn btn-success" id="btn-take-generated-exam" style="padding: 0.9rem 2rem; font-size: 1.15rem; font-weight: 700; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);" onclick="generatorStudio.takeGeneratedExamNow()">
+              🚀 VÀO LÀM BÀI THI NÀY NGAY (150 PHÚT)
+            </button>
+            <button class="btn btn-outline" onclick="app.showTab('dashboard')">
+              📋 Về Trang Chủ Xem Kho Đề
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: COMPETENCY ANALYTICS (BÁO CÁO PHÂN TÍCH NĂNG LỰC) -->
+    <section id="tab-analytics" style="display: none;">
+      <div id="analytics-empty-notice" class="card" style="text-align: center; padding: 3rem;">
+        <h3 style="color: var(--text-muted); margin-bottom: 1rem;">Chưa có kết quả bài thi nào được nộp trong phiên này.</h3>
+        <p style="margin-bottom: 1.5rem;">Hãy hoàn thành bài thi thử ĐGNL 120 câu để nhận báo cáo phân tích mạng nhện và lời khuyên ôn tập của AI.</p>
+        <button class="btn btn-primary" onclick="examRunner.startBenchmarkExam()">
+          Vào Làm Bài Thi Ngay
+        </button>
+      </div>
+
+      <div id="analytics-report-content" style="display: none;">
+        <!-- Score Card Hero -->
+        <div class="score-hero">
+          <span style="font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+            Tổng Điểm Bài Thi Đánh Giá Năng Lực
+          </span>
+          <div class="total-score-value" id="report-total-score">850.5</div>
+          <span style="font-size: 1.1rem; color: var(--text-muted);" id="report-max-score-display">/ 1200 điểm</span>
+          <div style="margin-top: 0.5rem;">
+            <span class="badge badge-success" id="report-tier-badge" style="font-size: 1rem; padding: 0.4rem 1rem;">
+              Xuất sắc (Top 5%)
+            </span>
+          </div>
+
+          <div class="subscores-bar" id="report-subscores-bar">
+            <div class="subscore-item">
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 1: Ngôn ngữ</div>
+              <div class="num" style="color: #4f46e5;" id="report-sec1-score">310 / 400</div>
+            </div>
+            <div class="subscore-item">
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 2: Toán, Logic & Số liệu</div>
+              <div class="num" style="color: #0ea5e9;" id="report-sec2-score">240 / 300</div>
+            </div>
+            <div class="subscore-item">
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 3: Giải quyết vấn đề</div>
+              <div class="num" style="color: #10b981;" id="report-sec3-score">390 / 500</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Radar Chart and Strengths/Weaknesses -->
+        <div class="radar-section card">
+          <div>
+            <h3 style="font-size: 1.25rem; margin-bottom: 1rem;">Biểu Đồ Radar Đánh Giá 10 Miền Năng Lực</h3>
+            <div class="radar-img-box">
+              <img id="report-radar-img" src="" alt="Biểu đồ mạng nhện năng lực">
+            </div>
+          </div>
+
+          <div>
+            <h3 style="font-size: 1.25rem; margin-bottom: 1rem;">Phân Tích Ma Trận Điểm Mạnh & Lỗ Hổng</h3>
+            <div style="margin-bottom: 1.5rem;">
+              <h4 style="color: var(--success); font-size: 1rem; margin-bottom: 0.5rem;">🌟 Năng Lực Vượt Trội (>= 70%)</h4>
+              <ul id="strong-areas-list" style="padding-left: 1.25rem; line-height: 1.8;"></ul>
+            </div>
+            <div>
+              <h4 style="color: var(--danger); font-size: 1rem; margin-bottom: 0.5rem;">⚠️ Lỗ Hổng Cần Tập Trung Khắc Phục (< 50%)</h4>
+              <ul id="weak-areas-list" style="padding-left: 1.25rem; line-height: 1.8;"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Study Advisor Recommendations -->
+        <div class="card">
+          <h3 style="font-size: 1.25rem; margin-bottom: 1rem; color: var(--primary);">
+            💡 Lời Khuyên Ôn Tập & Chiến Lược Cải Thiện Điểm Số Từ AI Chuyên Gia
+          </h3>
+          <div id="report-ai-advice" style="white-space: pre-line; line-height: 1.7; background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid var(--border);"></div>
+        </div>
+
+        <!-- Detailed Review for all 120 Questions -->
+        <div class="card">
+          <h3 style="font-size: 1.25rem; margin-bottom: 1rem;">
+            🔍 Tra Cứu Chi Tiết Đáp Án & Lời Giải Cả 120 Câu Hỏi
+          </h3>
+          <div id="report-detailed-table-container"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: SETTINGS -->
+    <section id="tab-settings" style="display: none;">
+      <div class="card" style="max-width: 650px; margin: 0 auto;">
+        <h2 style="font-size: 1.3rem; margin-bottom: 1rem;">Cài Đặt Cấu Hình Hệ Thống</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+          Hệ thống có thể hoạt động hoàn toàn độc lập với bộ đề mẫu 120 câu và bộ sinh quy tắc chuẩn.
+          Nếu muốn kích hoạt khả năng sinh câu hỏi trực tiếp bằng LLM cho Hội đồng Tác tử LangGraph, bạn có thể cấu hình API key tại đây.
+        <div id="settings-status-banner" style="background: #f0fdf4; border: 1.5px solid var(--success); border-radius: 0.6rem; padding: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 1.6rem;">🔑</span>
+          <div>
+            <strong style="color: var(--success); font-size: 1.05rem;" id="settings-keys-badge">Đang nạp trạng thái API Keys...</strong>
+            <p style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;" id="settings-keys-desc">
+              Hệ thống tự động nhận diện danh sách Gemini API Keys từ file .env và xoay vòng Round-Robin khi sinh đề.
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Danh sách Gemini API Keys xoay vòng (ngăn cách bằng dấu phẩy):</label>
+          <textarea id="input-gemini-keys" rows="3" placeholder="AIzaSyA_KEY1, AIzaSyB_KEY2, AIzaSyC_KEY3..." style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem;"></textarea>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Key sẽ tự động xoay vòng Round-Robin và tự động chuyển key (Auto-failover) khi chạm giới hạn 429 RateLimit.</span>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Mô hình Gemini (Model):</label>
+          <select id="select-gemini-model" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem;">
+            <option value="gemini-flash-lite-latest" selected>Gemini Flash Lite (Khuyên dùng - Nhanh & Ổn định 2026)</option>
+            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">OpenAI API Key (Tùy chọn phụ trợ):</label>
+          <input type="password" id="input-openai-key" placeholder="sk-..." style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem;">
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Mô hình OpenAI (Model):</label>
+          <input type="text" id="input-openai-model" value="gpt-4o-mini" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem;">
+        </div>
+
+        <button class="btn btn-primary" onclick="app.saveSettings()">
+          💾 Lưu Cài Đặt API Keys
+        </button>
+      </div>
+    </section>
+
+  <!-- FULLSCREEN IMAGE ZOOM MODAL (LIGHTBOX) -->
+  <div id="image-zoom-modal" class="img-zoom-modal" style="display: none;" onclick="imageZoomViewer.handleBackdropClick(event)">
+    <div class="img-zoom-toolbar">
+      <div class="img-zoom-title-area">
+        <span class="img-zoom-icon">🖼️</span>
+        <span id="img-zoom-caption" class="img-zoom-caption">Biểu đồ minh họa câu hỏi</span>
+      </div>
+      <div class="img-zoom-controls">
+        <button class="img-zoom-btn" onclick="imageZoomViewer.zoomOut()" title="Thu nhỏ (Ctrl -)">➖ Thu nhỏ</button>
+        <span id="img-zoom-level-badge" class="img-zoom-badge">100%</span>
+        <button class="img-zoom-btn" onclick="imageZoomViewer.zoomIn()" title="Phóng to (Ctrl +)">➕ Phóng to</button>
+        <button class="img-zoom-btn" onclick="imageZoomViewer.resetZoom()" title="Đặt lại kích thước ban đầu (100%)">🔄 Đặt lại</button>
+        <button class="img-zoom-btn img-zoom-btn-close" onclick="imageZoomViewer.close()" title="Đóng (Esc)">✖ Đóng</button>
+      </div>
+    </div>
+
+    <div class="img-zoom-viewport" id="img-zoom-viewport">
+      <div class="img-zoom-canvas" id="img-zoom-canvas">
+        <img id="img-zoom-target" src="" alt="Ảnh phóng to" draggable="false">
+      </div>
+    </div>
+
+    <div class="img-zoom-footer-hint">
+      💡 <strong>Mẹo thao tác:</strong> Dùng <strong>con cuộn chuột</strong> để phóng to/thu nhỏ • Giữ và <strong>kéo chuột</strong> để di chuyển chi tiết • Nhấn <strong>Esc</strong> hoặc nhấp nền ngoài để đóng.
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="/js/app.js?v=2026.2"></script>
+  <script src="/js/exam.js?v=2026.2"></script>
+  <script src="/js/generator.js?v=2026.2"></script>
+  <script src="/js/analytics.js?v=2026.2"></script>
+</body>
+</html>

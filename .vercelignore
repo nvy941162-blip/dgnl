@@ -1,0 +1,11 @@
+.env
+*.rar
+*.zip
+tests/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+run.bat
+run.py
+create_benchmark.py
