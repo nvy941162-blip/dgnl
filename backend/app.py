@@ -134,6 +134,8 @@ class GenerateFullExamRequest(BaseModel):
     title: Optional[str] = "Đề Thi ĐGNL 120 Câu AI Tự Động"
     theme: Optional[str] = "Khoa học, Xã hội & Đổi mới"
     mode: Optional[str] = "vact_full"
+    user_id: Optional[str] = None
+    role: Optional[str] = None
 
 class SaveSettingsRequest(BaseModel):
     openai_api_key: Optional[str] = None
@@ -289,6 +291,53 @@ def admin_reset_password(user_id: str, new_pass: str = Body(..., embed=True), db
     u.password_hash = hash_password(new_pass)
     db.commit()
     return {"status": "success", "message": f"Đã đổi mật khẩu cho học sinh '{u.full_name}' thành '{new_pass}'!"}
+
+@app.get("/api/admin/leaderboard")
+def admin_leaderboard(exam_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Bảng vàng xếp hạng điểm số toàn hệ thống:
+    Sắp xếp tất cả các bài thi từ CAO XUỐNG THẤP kèm tên học sinh, lớp, đề thi, thời gian và điểm số.
+    """
+    query = db.query(SubmissionModel)
+    if exam_id and exam_id != "all":
+        query = query.filter(SubmissionModel.exam_id == exam_id)
+
+    subs = query.all()
+
+    # Tính phần trăm điểm để sắp xếp công bằng giữa đề SPT (thang 10) và V-ACT (thang 1200)
+    records = []
+    for s in subs:
+        exam = db.query(ExamModel).filter(ExamModel.id == s.exam_id).first()
+        exam_title = exam.title if exam else "Bài thi ĐGNL"
+        max_score = exam.max_score if (exam and exam.max_score) else (10.0 if (exam and exam.exam_type == "spt") else 1200.0)
+        percentage = round((s.total_score / max_score) * 100.0, 1) if max_score > 0 else 0.0
+
+        user = db.query(UserModel).filter(UserModel.id == s.user_id).first() if s.user_id else None
+        student_class = user.student_class if user else "12"
+        school = user.school if user else "THPT"
+
+        records.append({
+            "id": s.id,
+            "candidate_name": s.candidate_name,
+            "username": user.username if user else "khach",
+            "student_class": student_class,
+            "school": school,
+            "exam_id": s.exam_id,
+            "exam_title": exam_title,
+            "total_score": s.total_score,
+            "max_score": max_score,
+            "percentage": percentage,
+            "time_spent_seconds": s.time_spent_seconds,
+            "submitted_at": s.submitted_at.strftime("%d/%m/%Y %H:%M") if s.submitted_at else ""
+        })
+
+    # Sắp xếp từ CAO XUỐNG THẤP theo percentage, sau đó theo total_score
+    records.sort(key=lambda r: (r["percentage"], r["total_score"]), reverse=True)
+
+    return {
+        "leaderboard": records,
+        "total_submissions": len(records)
+    }
 
 @app.get("/api/health")
 def health_check():
@@ -891,9 +940,20 @@ def generate_questions_with_council(req: GenerateAgentRequest):
 def generate_full_exam(req: GenerateFullExamRequest, db: Session = Depends(get_db)):
     """
     Kích hoạt Hội đồng Tác tử LangGraph sinh đề:
-    - Nếu mode == 'vact_full': sinh trọn vẹn 120 câu chuẩn ĐGNL V-ACT (150 phút, 1200 điểm IRT).
-    - Nếu mode là SPT (spt_math, spt_english,...): sinh đúng số lượng câu và thời gian y hệt đề mẫu ĐHSP HN (thang điểm 10.0).
+    BẢO MẬT PHÂN QUYỀN: Chỉ tài khoản Admin mới có quyền tạo đề thi mới!
+    Học sinh chỉ có quyền xem đề và làm bài.
     """
+    # Kiểm tra quyền Admin
+    if req.role != "admin":
+        # Xác minh trong database nếu có user_id
+        is_admin = False
+        if req.user_id:
+            u = db.query(UserModel).filter(UserModel.id == req.user_id).first()
+            if u and (u.role == "admin" or u.username == "admin"):
+                is_admin = True
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Chỉ Quản trị viên (Admin) mới có quyền tạo đề thi mới. Học sinh chỉ được phép làm bài thi!")
+
     mode = (req.mode or "vact_full").strip()
     title_raw = (req.title or "").strip()
     theme_raw = (req.theme or "").strip()

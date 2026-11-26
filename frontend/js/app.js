@@ -444,8 +444,9 @@ const app = {
     if (tabName === 'dashboard') {
       this.loadExams();
     } else if (tabName === 'admin') {
-      if (typeof adminManager !== 'undefined' && adminManager.loadUsers) {
-        adminManager.loadUsers();
+      if (typeof adminManager !== 'undefined') {
+        if (adminManager.loadUsers) adminManager.loadUsers();
+        if (adminManager.loadLeaderboard) adminManager.loadLeaderboard();
       }
     } else if (tabName === 'generator') {
       if (typeof generatorStudio !== 'undefined' && generatorStudio.loadNextExamTitle) {
@@ -838,11 +839,19 @@ const authManager = {
       if (adminNavBtn) {
         adminNavBtn.style.display = this.isAdmin() ? 'inline-block' : 'none';
       }
+
+      // Ẩn Menu "Sinh Đề Mới" đối với Học Sinh, CHỈ ADMIN MỚI ĐƯỢC TẠO ĐỀ MỚI
+      const genDropdown = document.getElementById('nav-generator-dropdown');
+      if (genDropdown) {
+        genDropdown.style.display = this.isAdmin() ? 'inline-block' : 'none';
+      }
     } else {
       if (closeBtn) closeBtn.style.display = 'none'; // Bắt buộc phải đăng nhập
       if (label) label.innerText = 'Đăng Nhập Khảo Thí';
       if (logoutBtn) logoutBtn.style.display = 'none';
       if (adminNavBtn) adminNavBtn.style.display = 'none';
+      const genDropdown = document.getElementById('nav-generator-dropdown');
+      if (genDropdown) genDropdown.style.display = 'none';
       if (authBtn) {
         authBtn.style.background = '#ffffff';
         authBtn.style.borderColor = 'var(--primary)';
@@ -1171,6 +1180,113 @@ const adminManager = {
     } catch (err) {
       alert("Lỗi đổi mật khẩu: " + err.message);
     }
+  },
+
+  async loadLeaderboard() {
+    try {
+      const res = await fetch('/api/admin/leaderboard');
+      if (!res.ok) throw new Error("Không thể tải bảng xếp hạng.");
+      const data = await res.json();
+      const list = data.leaderboard || [];
+
+      const tbody = document.getElementById('admin-leaderboard-table-body');
+      if (!tbody) return;
+
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có bài thi nào được nộp trong hệ thống.</td></tr>';
+        return;
+      }
+
+      this.cachedLeaderboard = list;
+
+      tbody.innerHTML = list.map((r, idx) => {
+        let rankBadge = `<span style="font-weight: 700; color: #64748b;">#${idx + 1}</span>`;
+        if (idx === 0) rankBadge = `<span class="badge" style="background: #fef08a; color: #854d0e; font-size: 0.85rem;">🥇 Top 1</span>`;
+        else if (idx === 1) rankBadge = `<span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.85rem;">🥈 Top 2</span>`;
+        else if (idx === 2) rankBadge = `<span class="badge" style="background: #fed7aa; color: #9a3412; font-size: 0.85rem;">🥉 Top 3</span>`;
+
+        return `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">${rankBadge}</td>
+            <td style="padding: 0.75rem 0.5rem;">
+              <strong style="color: #1e293b;">${r.candidate_name}</strong>
+              <div style="font-size: 0.8rem; color: #64748b;">@${r.username}</div>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; color: #475569;">${r.student_class} - ${r.school}</td>
+            <td style="padding: 0.75rem 0.5rem; color: var(--primary); font-weight: 600;">${r.exam_title}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-weight: bold; color: var(--success); font-size: 1rem;">
+              ${r.total_score} / ${r.max_score}đ
+            </td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">
+              <span class="badge ${r.percentage >= 80 ? 'badge-success' : (r.percentage >= 50 ? 'badge-primary' : 'badge-warning')}">
+                ${r.percentage}%
+              </span>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; color: #64748b;">${Math.round(r.time_spent_seconds / 60)} phút</td>
+            <td style="padding: 0.75rem 0.5rem; font-size: 0.8rem; color: #64748b;">${r.submitted_at}</td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch (err) {
+      console.warn("Lỗi tải Leaderboard: " + err.message);
+    }
+  },
+
+  copyLeaderboard() {
+    const list = this.cachedLeaderboard || [];
+    if (list.length === 0) {
+      alert("Chưa có dữ liệu bảng điểm để sao chép!");
+      return;
+    }
+
+    let text = "BẢNG VÀNG XẾP HẠNG ĐIỂM THI ĐÁNH GIÁ NĂNG LỰC (TỪ CAO XUỐNG THẤP)\n";
+    text += "Hạng\tHọ và tên\tTài khoản\tLớp\tTrường\tĐề thi\tĐiểm số\tTỷ lệ\tThời gian\tNgày nộp\n";
+    list.forEach((r, idx) => {
+      text += `${idx + 1}\t${r.candidate_name}\t${r.username}\t${r.student_class}\t${r.school}\t${r.exam_title}\t${r.total_score}/${r.max_score}\t${r.percentage}%\t${Math.round(r.time_spent_seconds / 60)}p\t${r.submitted_at}\n`;
+    });
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert("✅ ĐÃ SAO CHÉP TOÀN BỘ BẢNG ĐIỂM XẾP HẠNG!\n\nBạn có thể dán (Ctrl + V) trực tiếp vào Excel, Google Sheets, Zalo hoặc Word.");
+      });
+    } else {
+      prompt("Sao chép thủ công bảng điểm dưới đây (Ctrl + C):", text);
+    }
+  },
+
+  exportLeaderboardCSV() {
+    const list = this.cachedLeaderboard || [];
+    if (list.length === 0) {
+      alert("Chưa có dữ liệu để xuất file Excel!");
+      return;
+    }
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    csvContent += "Thứ hạng,Họ và tên thí sinh,Tài khoản,Lớp,Trường THPT,Tên đề thi,Điểm đạt được,Điểm tối đa,Tỷ lệ phần trăm,Thời gian làm (phút),Ngày nộp bài\n";
+
+    list.forEach((r, idx) => {
+      const rank = idx + 1;
+      const name = `"${(r.candidate_name || '').replace(/"/g, '""')}"`;
+      const uname = `"${(r.username || '').replace(/"/g, '""')}"`;
+      const sclass = `"${(r.student_class || '').replace(/"/g, '""')}"`;
+      const school = `"${(r.school || '').replace(/"/g, '""')}"`;
+      const examTitle = `"${(r.exam_title || '').replace(/"/g, '""')}"`;
+      const timeMins = Math.round((r.time_spent_seconds || 0) / 60);
+      const date = `"${r.submitted_at || ''}"`;
+
+      csvContent += `${rank},${name},${uname},${sclass},${school},${examTitle},${r.total_score},${r.max_score},${r.percentage}%,${timeMins},${date}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bang_Vang_Xep_Hang_DGNL_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 };
 

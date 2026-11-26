@@ -668,6 +668,46 @@
           </table>
         </div>
       </div>
+
+      <!-- BẢNG VÀNG XẾP HẠNG ĐIỂM SỐ TỪ CAO XUỐNG THẤP CHO ADMIN -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <h3 style="color: var(--primary); margin: 0 0 0.25rem 0;">🏆 Bảng Vàng Xếp Hạng Điểm Thi (Từ Cao Xuống Thấp)</h3>
+            <small style="color: #64748b;">Toàn bộ bài thi của học sinh được sắp xếp theo tỷ lệ phần trăm và điểm số thực tế để ban quản lý giám sát</small>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-outline btn-sm" onclick="adminManager.copyLeaderboard()" style="font-size: 0.85rem;" title="Sao chép toàn bộ bảng xếp hạng để dán sang Excel, Word">
+              📋 Sao Chép Bảng Điểm
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="adminManager.exportLeaderboardCSV()" style="font-size: 0.85rem;" title="Tải file Excel .CSV có dấu tiếng Việt">
+              📥 Xuất File Excel
+            </button>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="background: #eef2ff; border-bottom: 2px solid #c7d2fe; text-align: left;">
+                <th style="padding: 0.75rem 0.5rem; text-align: center;">Hạng</th>
+                <th style="padding: 0.75rem 0.5rem;">Thí Sinh / Học Sinh</th>
+                <th style="padding: 0.75rem 0.5rem;">Lớp - Trường</th>
+                <th style="padding: 0.75rem 0.5rem;">Tên Đề Thi</th>
+                <th style="padding: 0.75rem 0.5rem; text-align: center;">Điểm Đạt Được</th>
+                <th style="padding: 0.75rem 0.5rem; text-align: center;">Tỷ Lệ (%)</th>
+                <th style="padding: 0.75rem 0.5rem; text-align: center;">Thời Gian Làm</th>
+                <th style="padding: 0.75rem 0.5rem;">Ngày Nộp Bài</th>
+              </tr>
+            </thead>
+            <tbody id="admin-leaderboard-table-body">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải bảng xếp hạng...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
   <!-- FULLSCREEN IMAGE ZOOM MODAL (LIGHTBOX) -->

@@ -13,6 +13,14 @@ const generatorStudio = {
   async startFull120Generation() {
     if (this.isGenerating120) return;
 
+    // KIỂM TRA PHÂN QUYỀN: CHỈ ADMIN MỚI ĐƯỢC TẠO ĐỀ MỚI
+    const currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.username === 'admin');
+    if (!isAdmin) {
+      alert("⚠️ THÔNG BÁO QUYỀN TRUY CẬP:\n\nChỉ Quản trị viên (Admin) mới có quyền tạo đề thi mới.\nHọc sinh chỉ có quyền xem đề và làm bài thi!");
+      return;
+    }
+
     const title = document.getElementById('full-exam-title-input').value.trim();
     const theme = document.getElementById('full-exam-theme-input').value.trim();
     const modeInput = document.getElementById('full-exam-mode-input');
@@ -60,7 +68,13 @@ const generatorStudio = {
       const res = await fetch('/api/exams/generate-120', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, theme, mode })
+        body: JSON.stringify({
+          title,
+          theme,
+          mode,
+          user_id: currentUser ? currentUser.id : null,
+          role: currentUser ? currentUser.role : null
+        })
       });
 
       if (!res.ok) throw new Error("Không thể khởi động tác vụ sinh đề");
