@@ -795,7 +795,6 @@ const authManager = {
     }
 
     this.updateUI();
-    this.fetchDemoStudents();
 
     // MỖI KHI MỞ TRANG WEB: BẮT BUỘC BẬT FORM ĐĂNG NHẬP NGAY LẬP TỨC
     if (!this.currentUser) {

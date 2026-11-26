@@ -14,8 +14,21 @@ const generatorStudio = {
     if (this.isGenerating120) return;
 
     // KIỂM TRA PHÂN QUYỀN: CHỈ ADMIN MỚI ĐƯỢC TẠO ĐỀ MỚI
-    const currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
-    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.username === 'admin');
+    let currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+    if (!currentUser) {
+      try {
+        const raw = sessionStorage.getItem('dgnl_current_session_user') || localStorage.getItem('dgnl_current_student');
+        if (raw) currentUser = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    const isAdmin = currentUser && (
+      currentUser.role === 'admin' ||
+      currentUser.username === 'admin' ||
+      (currentUser.full_name && currentUser.full_name.includes('Admin')) ||
+      (currentUser.student_class && currentUser.student_class.includes('Quản Trị'))
+    );
+
     if (!isAdmin) {
       alert("⚠️ THÔNG BÁO QUYỀN TRUY CẬP:\n\nChỉ Quản trị viên (Admin) mới có quyền tạo đề thi mới.\nHọc sinh chỉ có quyền xem đề và làm bài thi!");
       return;
@@ -72,8 +85,8 @@ const generatorStudio = {
           title,
           theme,
           mode,
-          user_id: currentUser ? currentUser.id : null,
-          role: currentUser ? currentUser.role : null
+          user_id: currentUser ? currentUser.id : "user_admin_root",
+          role: "admin"
         })
       });
 

@@ -635,14 +635,9 @@
             <h2 style="color: white; margin: 0 0 0.5rem 0;">🛡️ Bảng Quản Trị Hệ Thống Khảo Thí (Admin Portal)</h2>
             <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">Quản lý toàn bộ danh sách tài khoản học sinh, theo dõi bài thi, kết quả khảo thí và bảo mật hệ thống.</p>
           </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <a href="/api/docs/codebase-pdf" target="_blank" class="btn btn-primary" style="background: #38bdf8; color: #0f172a; font-weight: bold; text-decoration: none;" title="Xem và in tài liệu giải thích chi tiết mã nguồn & Multi-Agent gửi Ban Giám Khảo">
-              📄 Báo Cáo Mã Nguồn & Multi-Agent (PDF)
-            </a>
-            <button class="btn btn-warning" onclick="adminManager.loadUsers()" style="font-weight: 600;">
-              🔄 Làm Mới Dữ Liệu
-            </button>
-          </div>
+          <button class="btn btn-warning" onclick="adminManager.loadUsers()" style="font-weight: 600;">
+            🔄 Làm Mới Dữ Liệu
+          </button>
         </div>
       </div>
 
@@ -792,16 +787,10 @@
           <span style="font-size: 1.5rem;">🎓</span>
           <div>
             <h3 style="margin: 0; font-size: 1.2rem; color: white;">Hệ Thống Đăng Nhập Khảo Thí ĐGNL</h3>
-            <small style="opacity: 0.9;">Đăng nhập để làm bài hoặc quản lý dữ liệu học sinh</small>
+            <small style="opacity: 0.9;">Dành cho học sinh khối 12 làm bài thi thử chuẩn hóa</small>
           </div>
         </div>
         <button id="auth-modal-close-btn" class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4); padding: 0.25rem 0.6rem; display: none;" onclick="authManager.closeModal()">✖</button>
-      </div>
-
-      <!-- Quick Demo Switcher Bar (Tối ưu cho KHKT Giám Khảo & Admin) -->
-      <div style="padding: 0.75rem 1.25rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
-        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">⚡ Chọn nhanh tài khoản demo (1-Click):</span>
-        <div id="quick-demo-students" style="display: flex; gap: 0.35rem; flex-wrap: wrap;"></div>
       </div>
 
       <!-- Tab Switcher -->
@@ -865,9 +854,9 @@
   </div>
 
   <!-- JavaScript Modules -->
-  <script src="/js/app.js?v=2026.9"></script>
-  <script src="/js/exam.js?v=2026.9"></script>
-  <script src="/js/generator.js?v=2026.9"></script>
-  <script src="/js/analytics.js?v=2026.9"></script>
+  <script src="/js/app.js?v=2026.11"></script>
+  <script src="/js/exam.js?v=2026.11"></script>
+  <script src="/js/generator.js?v=2026.11"></script>
+  <script src="/js/analytics.js?v=2026.11"></script>
 </body>
 </html>
