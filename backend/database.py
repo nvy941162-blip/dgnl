@@ -45,6 +45,7 @@ class UserModel(Base):
     username = Column(String(64), unique=True, index=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
     full_name = Column(String(128), nullable=False)
+    role = Column(String(32), default="student") # "admin" hoặc "student"
     student_class = Column(String(64), nullable=True) # Ví dụ: "12A1"
     school = Column(String(128), nullable=True)        # Ví dụ: "THPT Chuyên"
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -54,6 +55,7 @@ class UserModel(Base):
             "id": self.id,
             "username": self.username,
             "full_name": self.full_name,
+            "role": self.role or "student",
             "student_class": self.student_class or "",
             "school": self.school or "",
             "created_at": self.created_at.isoformat() if self.created_at else None
@@ -120,6 +122,13 @@ def init_db():
             sub_columns = [row[1] for row in cursor.fetchall()]
             if "user_id" not in sub_columns:
                 cursor.execute("ALTER TABLE submissions ADD COLUMN user_id VARCHAR(64)")
+
+            # Cập nhật migration cho bảng users nếu thiếu role
+            cursor.execute("PRAGMA table_info(users)")
+            user_columns = [row[1] for row in cursor.fetchall()]
+            if "role" not in user_columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN role VARCHAR(32) DEFAULT 'student'")
+
             conn.connection.commit()
     except Exception as e:
         print(f"Database migration note: {e}")

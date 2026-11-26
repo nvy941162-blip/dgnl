@@ -200,7 +200,22 @@ def login_student(req: LoginUserRequest, db: Session = Depends(get_db)):
 @app.get("/api/auth/students")
 def list_demo_students(db: Session = Depends(get_db)):
     """Danh sách học sinh (phục vụ chọn nhanh hồ sơ khi trình diễn KHKT)"""
-    users = db.query(UserModel).order_by(UserModel.created_at.desc()).limit(15).all()
+    # Đảm bảo có tài khoản Admin mặc định
+    admin_user = db.query(UserModel).filter(UserModel.username == "admin").first()
+    if not admin_user:
+        admin_user = UserModel(
+            id="user_admin_root",
+            username="admin",
+            password_hash=hash_password("admin123"),
+            full_name="Quản Trị Viên (Admin)",
+            role="admin",
+            student_class="Ban Giám Khảo / Quản Trị",
+            school="Sở GD&ĐT / Hội Đồng KHKT"
+        )
+        db.add(admin_user)
+        db.commit()
+
+    users = db.query(UserModel).filter(UserModel.role != "admin").order_by(UserModel.created_at.desc()).limit(20).all()
     # Nếu chưa có học sinh nào, tự động seed 2 học sinh mẫu tiện cho thi cử & KHKT
     if not users:
         demo1 = UserModel(
@@ -208,6 +223,7 @@ def list_demo_students(db: Session = Depends(get_db)):
             username="ngocvy",
             password_hash=hash_password("123"),
             full_name="Nguyễn Ngọc Yến Vy",
+            role="student",
             student_class="12A1",
             school="THPT Chuyên"
         )
@@ -216,15 +232,63 @@ def list_demo_students(db: Session = Depends(get_db)):
             username="minhkhoi",
             password_hash=hash_password("123"),
             full_name="Trần Minh Khôi",
+            role="student",
             student_class="12A2",
             school="THPT Chuyên"
         )
         db.add(demo1)
+        demo_users = [demo1, demo2]
         db.add(demo2)
         db.commit()
         users = [demo1, demo2]
 
-    return {"students": [u.to_dict() for u in users]}
+    return {
+        "students": [u.to_dict() for u in users],
+        "admin_available": True
+    }
+
+# --- ADMIN MANAGEMENT ENDPOINTS ---
+@app.get("/api/admin/users")
+def admin_list_all_users(admin_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """Admin xem danh sách toàn bộ tài khoản học sinh kèm thống kê số bài đã thi và điểm trung bình"""
+    users = db.query(UserModel).order_by(UserModel.created_at.desc()).all()
+    user_stats = []
+    for u in users:
+        subs = db.query(SubmissionModel).filter(SubmissionModel.user_id == u.id).all()
+        exam_count = len(subs)
+        avg_pct = round(sum([s.total_score / (10.0 if s.total_score <= 10.0 else 1200.0) * 100 for s in subs]) / exam_count, 1) if exam_count > 0 else 0.0
+        user_stats.append({
+            **u.to_dict(),
+            "exam_count": exam_count,
+            "avg_percentage": avg_pct,
+            "latest_submission": subs[-1].submitted_at.strftime("%d/%m/%Y %H:%M") if exam_count > 0 and subs[-1].submitted_at else "Chưa thi"
+        })
+    return {"users": user_stats}
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(user_id: str, db: Session = Depends(get_db)):
+    """Admin xóa tài khoản học sinh và toàn bộ bài thi liên quan"""
+    u = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản học sinh.")
+    if u.role == "admin" or u.username == "admin":
+        raise HTTPException(status_code=400, detail="Không thể xóa tài khoản Quản trị viên tối cao!")
+
+    # Xóa cả submissions của học sinh này
+    db.query(SubmissionModel).filter(SubmissionModel.user_id == user_id).delete()
+    db.delete(u)
+    db.commit()
+    return {"status": "success", "message": f"Đã xóa học sinh '{u.full_name}' và dữ liệu bài thi liên quan!"}
+
+@app.post("/api/admin/users/{user_id}/reset-password")
+def admin_reset_password(user_id: str, new_pass: str = Body(..., embed=True), db: Session = Depends(get_db)):
+    """Admin đặt lại mật khẩu cho học sinh"""
+    u = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản học sinh.")
+    u.password_hash = hash_password(new_pass)
+    db.commit()
+    return {"status": "success", "message": f"Đã đổi mật khẩu cho học sinh '{u.full_name}' thành '{new_pass}'!"}
 
 @app.get("/api/health")
 def health_check():

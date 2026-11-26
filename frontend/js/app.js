@@ -428,7 +428,7 @@ const app = {
   },
 
   showTab(tabName) {
-    const tabs = ['dashboard', 'exam', 'generator', 'analytics', 'settings'];
+    const tabs = ['dashboard', 'exam', 'generator', 'analytics', 'settings', 'admin'];
     tabs.forEach(t => {
       const el = document.getElementById(`tab-${t}`);
       const btn = document.getElementById(`btn-tab-${t}`);
@@ -443,6 +443,10 @@ const app = {
 
     if (tabName === 'dashboard') {
       this.loadExams();
+    } else if (tabName === 'admin') {
+      if (typeof adminManager !== 'undefined' && adminManager.loadUsers) {
+        adminManager.loadUsers();
+      }
     } else if (tabName === 'generator') {
       if (typeof generatorStudio !== 'undefined' && generatorStudio.loadNextExamTitle) {
         generatorStudio.loadNextExamTitle();
@@ -775,7 +779,7 @@ const authManager = {
   currentUser: null,
 
   init() {
-    // Tải thông tin học sinh đã lưu từ localStorage
+    // Tải thông tin người dùng đã lưu từ localStorage
     const saved = localStorage.getItem('dgnl_current_student');
     if (saved) {
       try {
@@ -785,48 +789,65 @@ const authManager = {
       }
     }
 
-    // Nếu chưa có tài khoản nào đăng nhập, mặc định nạp học sinh mẫu
-    if (!this.currentUser) {
-      this.currentUser = {
-        id: "stu_ngoc_vy",
-        username: "ngocvy",
-        full_name: "Nguyễn Ngọc Yến Vy",
-        student_class: "12A1",
-        school: "THPT Chuyên"
-      };
-      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
-    }
-
     this.updateUI();
     this.fetchDemoStudents();
+
+    // NẾU CHƯA ĐĂNG NHẬP: BẬT NGAY FORM ĐĂNG NHẬP LÊN TRÊN MÀN HÌNH (LOGIN WALL)
+    if (!this.currentUser) {
+      setTimeout(() => {
+        this.openModal(true); // force login
+      }, 200);
+    }
   },
 
   getCurrentUser() {
     return this.currentUser;
   },
 
+  isAdmin() {
+    return this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.username === 'admin');
+  },
+
   updateUI() {
     const label = document.getElementById('nav-user-label');
     const logoutBtn = document.getElementById('btn-logout-user');
     const authBtn = document.getElementById('btn-open-auth-modal');
+    const adminNavBtn = document.getElementById('btn-tab-admin');
+    const closeBtn = document.getElementById('auth-modal-close-btn');
 
     if (this.currentUser) {
-      if (label) label.innerText = `${this.currentUser.full_name} (${this.currentUser.student_class || 'HS'})`;
+      if (closeBtn) closeBtn.style.display = 'inline-block';
+      const roleBadge = this.isAdmin() ? '🛡️ Admin' : (this.currentUser.student_class || 'HS');
+      if (label) label.innerText = `${this.currentUser.full_name} (${roleBadge})`;
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
       if (authBtn) {
-        authBtn.style.background = '#e0f2fe';
-        authBtn.style.borderColor = '#0284c7';
-        authBtn.style.color = '#0369a1';
-        authBtn.title = `Tài khoản: ${this.currentUser.username} - Nhấn để đổi hoặc xem hồ sơ`;
+        if (this.isAdmin()) {
+          authBtn.style.background = '#fef3c7';
+          authBtn.style.borderColor = '#f59e0b';
+          authBtn.style.color = '#b45309';
+          authBtn.title = `Tài khoản Quản trị: ${this.currentUser.username}`;
+        } else {
+          authBtn.style.background = '#e0f2fe';
+          authBtn.style.borderColor = '#0284c7';
+          authBtn.style.color = '#0369a1';
+          authBtn.title = `Học sinh: ${this.currentUser.username} - Nhấn để đổi hoặc xem hồ sơ`;
+        }
+      }
+
+      // Hiển thị nút Tab Quản trị nếu là Admin
+      if (adminNavBtn) {
+        adminNavBtn.style.display = this.isAdmin() ? 'inline-block' : 'none';
       }
     } else {
-      if (label) label.innerText = 'Đăng Nhập Học Sinh';
+      if (closeBtn) closeBtn.style.display = 'none'; // Bắt buộc phải đăng nhập
+      if (label) label.innerText = 'Đăng Nhập Khảo Thí';
       if (logoutBtn) logoutBtn.style.display = 'none';
+      if (adminNavBtn) adminNavBtn.style.display = 'none';
       if (authBtn) {
         authBtn.style.background = '#ffffff';
         authBtn.style.borderColor = 'var(--primary)';
         authBtn.style.color = 'var(--primary)';
-        authBtn.title = 'Đăng nhập học sinh';
+        authBtn.title = 'Đăng nhập vào hệ thống';
       }
     }
 
@@ -839,16 +860,24 @@ const authManager = {
     }
   },
 
-  openModal() {
+  openModal(forceLogin = false) {
     const modal = document.getElementById('auth-modal');
     if (modal) {
       modal.style.display = 'flex';
+      const closeBtn = document.getElementById('auth-modal-close-btn');
+      if (closeBtn) {
+        closeBtn.style.display = (forceLogin || !this.currentUser) ? 'none' : 'inline-block';
+      }
       this.clearAlert();
       this.fetchDemoStudents();
     }
   },
 
   closeModal() {
+    if (!this.currentUser) {
+      this.showAlert("Vui lòng đăng nhập hoặc chọn 1 tài khoản để tiếp tục vào ứng dụng!", "danger");
+      return;
+    }
     const modal = document.getElementById('auth-modal');
     if (modal) modal.style.display = 'none';
   },
@@ -910,9 +939,18 @@ const authManager = {
       localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
       this.showAlert(`Xin chào ${this.currentUser.full_name}! Đăng nhập thành công.`, "success");
       this.updateUI();
-      setTimeout(() => {
-        this.closeModal();
-      }, 700);
+
+      if (this.isAdmin()) {
+        setTimeout(() => {
+          this.closeModal();
+          app.showTab('admin');
+          adminManager.loadUsers();
+        }, 600);
+      } else {
+        setTimeout(() => {
+          this.closeModal();
+        }, 600);
+      }
     } catch (err) {
       this.showAlert(`Lỗi kết nối máy chủ: ${err.message}`, "danger");
     }
@@ -963,32 +1001,54 @@ const authManager = {
       const container = document.getElementById('quick-demo-students');
       if (!container || !data.students) return;
 
-      container.innerHTML = data.students.map(s => {
+      let html = '';
+      // Nút Admin 1-Click Demo
+      const isAdminSelected = this.currentUser && this.currentUser.username === 'admin';
+      html += `
+        <button type="button" class="btn btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 4px; font-weight: bold; ${isAdminSelected ? 'background: #b45309; color: white;' : 'background: #fef3c7; color: #b45309; border: 1px solid #fde68a;'}" onclick="authManager.quickSwitch('admin', 'Quản Trị Viên (Admin)', 'user_admin_root', 'Ban Giám Khảo', 'admin')">
+          🛡️ Admin (Quản trị)
+        </button>
+      `;
+
+      // Nút Học sinh Demo
+      html += data.students.map(s => {
         const isSelected = this.currentUser && this.currentUser.username === s.username;
         return `
-          <button type="button" class="btn btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; ${isSelected ? 'background: #2563eb; color: white;' : 'background: #e2e8f0; color: #1e293b;'}" onclick="authManager.quickSwitch('${s.username}', '${s.full_name.replace(/'/g, "\\'")}', '${s.id}', '${s.student_class}')">
+          <button type="button" class="btn btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; ${isSelected ? 'background: #2563eb; color: white;' : 'background: #e2e8f0; color: #1e293b;'}" onclick="authManager.quickSwitch('${s.username}', '${s.full_name.replace(/'/g, "\\'")}', '${s.id}', '${s.student_class}', 'student')">
             ${s.full_name.split(' ').pop()} (${s.student_class})
           </button>
         `;
       }).join('');
+
+      container.innerHTML = html;
     } catch (e) {
       console.warn("Could not load demo students", e);
     }
   },
 
-  quickSwitch(username, fullName, id, studentClass) {
+  quickSwitch(username, fullName, id, studentClass, role = 'student') {
     this.currentUser = {
       id: id,
       username: username,
       full_name: fullName,
-      student_class: studentClass || "12"
+      student_class: studentClass || "12",
+      role: role
     };
     localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
-    this.showAlert(`Đã chuyển sang tài khoản: ${fullName}`, "success");
+    this.showAlert(`Đã chọn tài khoản: ${fullName} (${role === 'admin' ? 'Quyền Admin' : 'Học sinh'})`, "success");
     this.updateUI();
-    setTimeout(() => {
-      this.closeModal();
-    }, 500);
+
+    if (this.isAdmin()) {
+      setTimeout(() => {
+        this.closeModal();
+        app.showTab('admin');
+        adminManager.loadUsers();
+      }, 500);
+    } else {
+      setTimeout(() => {
+        this.closeModal();
+      }, 500);
+    }
   },
 
   logout() {
@@ -996,7 +1056,8 @@ const authManager = {
       this.currentUser = null;
       localStorage.removeItem('dgnl_current_student');
       this.updateUI();
-      this.openModal();
+      app.showTab('dashboard');
+      this.openModal(true); // Mở lại form đăng nhập bắt buộc
     }
   },
 
@@ -1021,6 +1082,94 @@ const authManager = {
     if (box) {
       box.style.display = 'none';
       box.innerText = '';
+    }
+  }
+};
+
+// Admin Management Module
+const adminManager = {
+  async loadUsers() {
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error("Không thể tải danh sách tài khoản.");
+      const data = await res.json();
+      const users = data.users || [];
+
+      const countBadge = document.getElementById('admin-user-count');
+      if (countBadge) countBadge.innerText = `${users.length} tài khoản`;
+
+      const tbody = document.getElementById('admin-users-table-body');
+      if (!tbody) return;
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có tài khoản học sinh nào.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => {
+        const isAdmin = (u.role === 'admin' || u.username === 'admin');
+        const roleTag = isAdmin ? '<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">Quản trị viên</span>' : '<span class="badge" style="background: #e0f2fe; color: #0369a1;">Học sinh</span>';
+        
+        const actionBtns = isAdmin ? '<span style="color: #94a3b8; font-style: italic;">Mặc định</span>' : `
+          <div style="display: flex; gap: 0.35rem; justify-content: center;">
+            <button class="btn btn-outline btn-sm" onclick="adminManager.resetPassword('${u.id}', '${u.full_name}')" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;" title="Đặt lại mật khẩu">
+              🔑 Đổi Pass
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="adminManager.deleteUser('${u.id}', '${u.full_name}')" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; color: #dc2626; border-color: #fca5a5;" title="Xóa tài khoản này">
+              🗑️ Xóa
+            </button>
+          </div>
+        `;
+
+        return `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 0.75rem 0.5rem;">
+              <strong>${u.username}</strong>
+              <div style="margin-top: 2px;">${roleTag}</div>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; font-weight: 600; color: #1e293b;">${u.full_name}</td>
+            <td style="padding: 0.75rem 0.5rem; color: #64748b;">${u.student_class} - ${u.school}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-weight: bold; color: var(--primary);">${u.exam_count || 0}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-weight: bold; color: ${u.avg_percentage >= 50 ? '#16a34a' : '#d97706'};">${u.avg_percentage || 0}%</td>
+            <td style="padding: 0.75rem 0.5rem; font-size: 0.8rem; color: #64748b;">${u.latest_submission || 'Chưa thi'}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">${actionBtns}</td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch (err) {
+      alert("Lỗi tải bảng Admin: " + err.message);
+    }
+  },
+
+  async deleteUser(userId, fullName) {
+    if (!confirm(`Bạn có chắc chắn muốn XÓA học sinh '${fullName}' và toàn bộ lịch sử thi cử liên quan không?`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Không thể xóa học sinh.");
+      alert(data.message);
+      this.loadUsers();
+      authManager.fetchDemoStudents();
+    } catch (err) {
+      alert("Lỗi xóa học sinh: " + err.message);
+    }
+  },
+
+  async resetPassword(userId, fullName) {
+    const newPass = prompt(`Nhập mật khẩu mới cho học sinh '${fullName}':`, "123456");
+    if (!newPass) return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_pass: newPass })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Không thể đổi mật khẩu.");
+      alert(data.message);
+    } catch (err) {
+      alert("Lỗi đổi mật khẩu: " + err.message);
     }
   }
 };
