@@ -25,6 +25,12 @@ class GeminiKeyRotator:
 
     def reload_keys(self) -> List[str]:
         """Nạp danh sách API keys từ môi trường và file .env"""
+        from backend.config import GEMINI_MODEL
+        model_candidate = os.getenv("GEMINI_MODEL") or GEMINI_MODEL or self.model or "gemini-flash-lite-latest"
+        # Tự động loại bỏ các model cũ đã bị Google ngừng hỗ trợ (404/deprecated)
+        if any(dep in model_candidate for dep in ["1.5", "2.0", "2.5", "3.1"]):
+            model_candidate = "gemini-flash-lite-latest"
+        self.model = model_candidate
         keys = []
         
         # 1. Kiểm tra chuỗi danh sách ngăn cách bằng dấu phẩy

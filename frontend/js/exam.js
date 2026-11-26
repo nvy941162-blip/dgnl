@@ -27,6 +27,12 @@ const examRunner = {
 
       document.getElementById('exam-title-display').innerText = exam.title;
       
+      const printBtn = document.getElementById('exam-print-btn');
+      if (printBtn) {
+        printBtn.href = `/api/exams/${examId}/print`;
+        printBtn.style.display = 'inline-block';
+      }
+
       this.renderPalette();
       this.renderCurrentQuestion();
       this.startTimer();
@@ -36,6 +42,53 @@ const examRunner = {
     } catch (err) {
       alert("Lỗi tải đề thi: " + err.message);
     }
+  },
+
+  startCustomMistakePractice(mistakes) {
+    if (!mistakes || mistakes.length === 0) {
+      alert("Sổ tay chưa có câu sai nào!");
+      return;
+    }
+    const questions = mistakes.map((m, idx) => ({
+      id: m.id || ('q_mis_' + idx),
+      question_number: idx + 1,
+      section_id: 'part_1',
+      domain: m.domain || 'Luyện tập câu sai',
+      prompt: m.prompt,
+      passage: m.passage || null,
+      chart_image: null,
+      question_type: m.question_type || 'multiple_choice',
+      options: m.options || [],
+      tf_statements: m.tf_statements || [],
+      points: 10.0,
+      difficulty: 'Vận dụng'
+    }));
+
+    this.examData = {
+      id: 'mistake_practice_' + Date.now(),
+      title: `Luyện Tập Bứt Phá: ${questions.length} Câu Từng Sai`,
+      duration_minutes: Math.max(15, questions.length * 2),
+      exam_type: 'spt',
+      max_score: questions.length * 10,
+      questions: questions
+    };
+
+    this.currentQuestionIndex = 0;
+    this.userAnswers = {};
+    this.flaggedQuestions = new Set();
+    this.remainingSeconds = this.examData.duration_minutes * 60;
+    this.examStartTime = Date.now();
+
+    document.getElementById('exam-title-display').innerText = this.examData.title;
+    const printBtn = document.getElementById('exam-print-btn');
+    if (printBtn) printBtn.style.display = 'none';
+
+    this.renderPalette();
+    this.renderCurrentQuestion();
+    this.startTimer();
+
+    app.showTab('exam');
+    this.saveSession();
   },
 
   startTimer() {
@@ -500,27 +553,43 @@ const examRunner = {
     localStorage.removeItem("dgnl_active_session");
   },
 
-  checkRestoreSession() {
+  async checkRestoreSession() {
     const raw = localStorage.getItem("dgnl_active_session");
     if (!raw) return;
     try {
       const s = JSON.parse(raw);
-      if (s.examId && s.remainingSeconds > 0) {
-        if (confirm("Hệ thống phát hiện bài thi chưa hoàn thành từ trước. Bạn có muốn tiếp tục làm bài không?")) {
-          this.loadAndStartExam(s.examId).then(() => {
-            this.userAnswers = s.userAnswers || {};
-            this.flaggedQuestions = new Set(s.flaggedQuestions || []);
-            this.remainingSeconds = s.remainingSeconds;
-            this.currentQuestionIndex = s.currentQuestionIndex || 0;
-            this.renderPalette();
-            this.renderCurrentQuestion();
-          });
-        } else {
-          this.clearSession();
-        }
+      if (!s || !s.examId) {
+        this.clearSession();
+        return;
       }
+
+      // Kiểm tra đề bài còn tồn tại trong cơ sở dữ liệu không
+      const checkRes = await fetch(`/api/exams/${s.examId}?mode=test`);
+      if (!checkRes.ok) {
+        // Đề bài đã bị xóa -> tự động xóa phiên và thoát giao diện làm bài về trang chủ
+        this.clearSession();
+        app.showTab('dashboard');
+        return;
+      }
+
+      // Đề bài vẫn còn -> tự động tiếp tục phòng thi, bắt buộc học sinh làm bài và nộp bài
+      const exam = await checkRes.json();
+      this.examData = exam;
+      this.userAnswers = s.userAnswers || {};
+      this.flaggedQuestions = new Set(s.flaggedQuestions || []);
+      this.remainingSeconds = (typeof s.remainingSeconds === 'number' && s.remainingSeconds > 0) ? s.remainingSeconds : (exam.duration_minutes || 150) * 60;
+      this.currentQuestionIndex = (typeof s.currentQuestionIndex === 'number' && s.currentQuestionIndex < (exam.questions?.length || 0)) ? s.currentQuestionIndex : 0;
+      this.examStartTime = s.examStartTime || Date.now();
+
+      document.getElementById('exam-title-display').innerText = exam.title;
+      this.renderPalette();
+      this.renderCurrentQuestion();
+      this.startTimer();
+      app.showTab('exam');
     } catch (e) {
+      console.warn("Session restore note:", e);
       this.clearSession();
+      app.showTab('dashboard');
     }
   },
 

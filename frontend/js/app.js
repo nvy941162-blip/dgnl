@@ -182,17 +182,24 @@ const app = {
     if (typeof generatorStudio !== 'undefined' && generatorStudio.loadNextExamTitle) {
       generatorStudio.loadNextExamTitle();
     }
+    if (typeof mistakesNotebook !== 'undefined' && mistakesNotebook.updateBadge) {
+      mistakesNotebook.updateBadge();
+    }
   },
 
   setupEventListeners() {
     // Check if there is an active exam saved in localStorage
     examRunner.checkRestoreSession();
 
-    // Click outside to close exam dropdown
+    // Click outside to close any open dropdowns
     document.addEventListener('click', (e) => {
-      const dd = document.getElementById('nav-exam-dropdown');
-      if (dd && !dd.contains(e.target)) {
-        dd.classList.remove('open');
+      const examDd = document.getElementById('nav-exam-dropdown');
+      if (examDd && !examDd.contains(e.target)) {
+        examDd.classList.remove('open');
+      }
+      const genDd = document.getElementById('nav-generator-dropdown');
+      if (genDd && !genDd.contains(e.target)) {
+        genDd.classList.remove('open');
       }
     });
   },
@@ -202,6 +209,9 @@ const app = {
       e.preventDefault();
       e.stopPropagation();
     }
+    const genDd = document.getElementById('nav-generator-dropdown');
+    if (genDd) genDd.classList.remove('open');
+
     const dd = document.getElementById('nav-exam-dropdown');
     if (dd) {
       dd.classList.toggle('open');
@@ -212,6 +222,156 @@ const app = {
     const dd = document.getElementById('nav-exam-dropdown');
     if (dd) {
       dd.classList.remove('open');
+    }
+  },
+
+  toggleGeneratorDropdown(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const examDd = document.getElementById('nav-exam-dropdown');
+    if (examDd) examDd.classList.remove('open');
+
+    const dd = document.getElementById('nav-generator-dropdown');
+    if (dd) {
+      dd.classList.toggle('open');
+    }
+  },
+
+  closeGeneratorDropdown() {
+    const dd = document.getElementById('nav-generator-dropdown');
+    if (dd) {
+      dd.classList.remove('open');
+    }
+  },
+
+  closeAllDropdowns() {
+    this.closeExamDropdown();
+    this.closeGeneratorDropdown();
+  },
+
+  openGeneratorWithMode(mode) {
+    this.closeAllDropdowns();
+    this.showTab('generator');
+
+    const modeKey = mode || 'vact_full';
+    const modeInput = document.getElementById('full-exam-mode-input');
+    if (modeInput) modeInput.value = modeKey;
+
+    if (typeof generatorStudio !== 'undefined') {
+      generatorStudio.currentMode = modeKey;
+      if (typeof generatorStudio.updateRecentUI === 'function') {
+        generatorStudio.updateRecentUI();
+      }
+    }
+
+    const titleInput = document.getElementById('full-exam-title-input');
+    const themeInput = document.getElementById('full-exam-theme-input');
+    const statusText = document.getElementById('full-exam-status-text');
+    const startBtn = document.getElementById('btn-start-full-120');
+    const badge = document.getElementById('generator-exam-badge');
+    const heroTitle = document.getElementById('generator-hero-title');
+    const heroDesc = document.getElementById('generator-hero-desc');
+
+    const modeConfigs = {
+      vact_full: {
+        badge: "120 Câu - 150 Phút - 1200đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề 120 Câu Bằng AI",
+        heroTitle: "🚀 TẠO ĐỀ THI ĐGNL HOÀN CHỈNH 120 CÂU (V-ACT)",
+        heroDesc: "Tự động sinh trọn vẹn 120 câu hỏi (Ngôn ngữ 40c, Logic/Số liệu 30c, Giải quyết vấn đề 50c), tính trọng số IRT 1200 điểm.",
+        title: "Đề Thi ĐGNL Số 02 - Luyện Thi Bứt Phá Điểm Số",
+        theme: "Khoa học, Xã hội, Biến đổi khí hậu & Đổi mới kinh tế",
+        desc: "🎯 Đã chọn: Tạo Đề ĐGNL Hoàn Chỉnh 120 Câu (Chuẩn ĐHQG-HCM 1200 điểm IRT)"
+      },
+      spt_math: {
+        badge: "25 Câu - 90 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Toán Học (25 Câu)",
+        heroTitle: "📐 TẠO ĐỀ THI THỬ SPT - MÔN TOÁN HỌC",
+        heroDesc: "Sinh trọn vẹn 25 câu hỏi môn Toán học theo 4 phần: Trắc nghiệm (16c), Đúng/Sai (2c 8 ý), Điền đáp số (4c), Tự luận (3c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Toán",
+        theme: "Đại số, Giải tích, Hình học không gian, Lượng giác & Xác suất",
+        desc: "📐 Đã chọn: Sinh đề thi thử SPT Môn Toán học (25 câu - 90 phút - Thang 10.0)"
+      },
+      spt_english: {
+        badge: "33 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Tiếng Anh (33 Câu)",
+        heroTitle: "🇬🇧 TẠO ĐỀ THI THỬ SPT - MÔN TIẾNG ANH",
+        heroDesc: "Sinh trọn vẹn 33 câu hỏi môn Tiếng Anh: Use of English (18c), Reading (10c), Word Formation (4c), Writing (1c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Tiếng Anh",
+        theme: "English Lexico-Grammar, Reading Comprehension & Writing",
+        desc: "🇬🇧 Đã chọn: Sinh đề thi thử SPT Môn Tiếng Anh (33 câu - 60 phút - Thang 10.0)"
+      },
+      spt_chemistry: {
+        badge: "27 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Hóa Học (27 Câu)",
+        heroTitle: "🧪 TẠO ĐỀ THI THỬ SPT - MÔN HÓA HỌC",
+        heroDesc: "Sinh trọn vẹn 27 câu hỏi môn Hóa học: Trắc nghiệm (20c), Đúng/Sai (2c 8 ý), Điền kết quả (4c), Tự luận (1c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Hóa Học",
+        theme: "Hóa học hữu cơ, Vô cơ, Tốc độ phản ứng, Cân bằng hóa học & Thực nghiệm",
+        desc: "🧪 Đã chọn: Sinh đề thi thử SPT Môn Hóa học (27 câu - 60 phút - Thang 10.0)"
+      },
+      spt_geography: {
+        badge: "20 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Địa Lí (20 Câu)",
+        heroTitle: "🌍 TẠO ĐỀ THI THỬ SPT - MÔN ĐỊA LÍ",
+        heroDesc: "Sinh trọn vẹn 20 câu hỏi môn Địa lí: Trắc nghiệm (12c), Đúng/Sai (3c 12 ý), Điền đáp số (4c), Tự luận (1c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Địa Lí",
+        theme: "Địa lí tự nhiên, Dân cư, Các vùng kinh tế trọng điểm & Biến đổi khí hậu",
+        desc: "🌍 Đã chọn: Sinh đề thi thử SPT Môn Địa lí (20 câu - 60 phút - Thang 10.0)"
+      },
+      spt_history: {
+        badge: "25 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Lịch Sử (25 Câu)",
+        heroTitle: "📜 TẠO ĐỀ THI THỬ SPT - MÔN LỊCH SỬ",
+        heroDesc: "Sinh trọn vẹn 25 câu hỏi môn Lịch sử: Trắc nghiệm (20c), Đúng/Sai (2c 8 ý), Tự luận (3c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Lịch Sử",
+        theme: "Lịch sử Việt Nam hiện đại, Cách mạng giải phóng dân tộc & Hội nhập quốc tế",
+        desc: "📜 Đã chọn: Sinh đề thi thử SPT Môn Lịch sử (25 câu - 60 phút - Thang 10.0)"
+      },
+      spt_civics: {
+        badge: "21 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề GDKT&PL (21 Câu)",
+        heroTitle: "⚖️ TẠO ĐỀ THI THỬ SPT - MÔN GDKT & PHÁP LUẬT",
+        heroDesc: "Sinh trọn vẹn 21 câu hỏi môn GDKT&PL: Trắc nghiệm (16c), Đúng/Sai (3c 12 ý), Tự luận (2c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn GDKT&PL",
+        theme: "Kinh tế thị trường, Pháp luật dân sự, Quyền bình đẳng & Trách nhiệm công dân",
+        desc: "⚖️ Đã chọn: Sinh đề thi thử SPT Môn GDKT & Pháp luật (21 câu - 60 phút - Thang 10.0)"
+      },
+      spt_tech_ind: {
+        badge: "24 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Công Nghệ CN (24 Câu)",
+        heroTitle: "⚙️ TẠO ĐỀ THI THỬ SPT - CÔNG NGHỆ CÔNG NGHIỆP",
+        heroDesc: "Sinh trọn vẹn 24 câu hỏi môn Công nghệ CN: Trắc nghiệm (16c), Đúng/Sai (2c 8 ý), Điền kết quả (4c), Tự luận (2c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Công Nghiệp",
+        theme: "Cơ khí chế tạo, Bản vẽ kỹ thuật, Mạch điện tử & Công nghệ tự động hóa",
+        desc: "⚙️ Đã chọn: Sinh đề thi thử SPT Môn Công nghệ Công nghiệp (24 câu - 60 phút - Thang 10.0)"
+      },
+      spt_tech_agr: {
+        badge: "24 Câu - 60 Phút - Thang 10.0đ",
+        btnText: "⚡ Bắt Đầu Tạo Đề Công Nghệ NN (24 Câu)",
+        heroTitle: "🌾 TẠO ĐỀ THI THỬ SPT - CÔNG NGHỆ NÔNG NGHIỆP",
+        heroDesc: "Sinh trọn vẹn 24 câu hỏi môn Công nghệ NN: Trắc nghiệm (16c), Đúng/Sai (2c 8 ý), Điền kết quả (4c), Tự luận (2c) - Thang điểm 10.0.",
+        title: "Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Nông Nghiệp",
+        theme: "Nông nghiệp công nghệ cao, Lâm nghiệp sinh thái & Thủy sản bền vững",
+        desc: "🌾 Đã chọn: Sinh đề thi thử SPT Môn Công nghệ Nông nghiệp (24 câu - 60 phút - Thang 10.0)"
+      }
+    };
+
+    const cfg = modeConfigs[mode] || modeConfigs.vact_full;
+    if (cfg.title && titleInput) titleInput.value = cfg.title;
+    if (cfg.theme && themeInput) themeInput.value = cfg.theme;
+    if (statusText) statusText.innerText = cfg.desc;
+    if (startBtn && cfg.btnText) startBtn.innerHTML = cfg.btnText;
+    if (badge && cfg.badge) badge.innerText = cfg.badge;
+    if (heroTitle && cfg.heroTitle) heroTitle.innerText = cfg.heroTitle;
+    if (heroDesc && cfg.heroDesc) heroDesc.innerText = cfg.heroDesc;
+
+    const notif = document.getElementById('generator-mode-notification');
+    if (notif) {
+      notif.style.display = 'block';
+      notif.innerHTML = `${cfg.desc} • Sẵn sàng tạo đề!`;
+      notif.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   },
 
@@ -261,7 +421,7 @@ const app = {
         return token;
       }
       // Chỉ bọc $ cho các biểu thức LaTeX trần nằm bên ngoài
-      return token.replace(nakedPattern, '');
+      return token.replace(nakedPattern, (match) => `$${match}$`);
     });
 
     return parts.join('').replace(/\n/g, '<br>');
@@ -421,7 +581,10 @@ const app = {
               ${e.subject ? `<span>📚 Môn: <strong>${e.subject}</strong></span>` : ''}
             </div>
           </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <a href="/api/exams/${e.id}/print" target="_blank" class="btn btn-outline" style="text-decoration: none; padding: 0.55rem 0.85rem; font-size: 0.85rem; font-weight: 600;" title="Mở bản in A4 và đáp án chuẩn khảo thí">
+              🖨️ In Đề
+            </a>
             <button class="btn btn-primary" onclick="examRunner.loadAndStartExam('${e.id}')">
               Vào Thi Thử
             </button>
@@ -488,6 +651,117 @@ const app = {
       this.showTab('dashboard');
     } catch (err) {
       alert('Lỗi lưu cài đặt: ' + err.message);
+    }
+  }
+};
+
+// Mistake Notebook Controller (Sổ Tay Bẫy Điểm & Luyện Tập Câu Sai)
+const mistakesNotebook = {
+  openModal() {
+    const modal = document.getElementById('mistakes-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      this.render();
+    }
+  },
+  closeModal() {
+    const modal = document.getElementById('mistakes-modal');
+    if (modal) modal.style.display = 'none';
+  },
+  getItems() {
+    try {
+      return JSON.parse(localStorage.getItem('dgnl_mistakes_notebook') || '[]');
+    } catch {
+      return [];
+    }
+  },
+  render() {
+    const items = this.getItems();
+    const container = document.getElementById('mistakes-list-container');
+    const label = document.getElementById('mistakes-total-label');
+    if (label) label.innerText = `Đang có ${items.length} câu hỏi cần khắc phục bẫy điểm`;
+    this.updateBadge();
+
+    if (!container) return;
+    if (items.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Chưa có câu sai nào trong sổ tay. Hãy làm bài thi thử để hệ thống tự động ghi nhận nhé!</p>';
+      return;
+    }
+
+    container.innerHTML = items.map((m, idx) => {
+      const qPayload = encodeURIComponent(JSON.stringify({
+        prompt: m.prompt,
+        user_answer: m.user_answer,
+        correct_answer: m.correct_answer,
+        explanation: m.explanation,
+        question_type: m.question_type || 'multiple_choice'
+      }));
+
+      return `
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.6rem; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <span class="badge badge-primary" style="font-size: 0.75rem;">${m.domain || 'Tổng hợp'}</span>
+              <strong style="margin-left: 0.5rem; color: #1e293b;">Câu ${idx + 1} (${m.exam_title || 'Đề thi'})</strong>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <button class="btn btn-primary btn-sm" onclick="analyticsView.askAITutor('${qPayload}')" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                🤖 Hỏi Gia Sư AI
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="mistakesNotebook.deleteItem('${m.id}')" style="font-size: 0.8rem; padding: 0.3rem 0.6rem; color: #dc2626; border-color: #fecaca;">
+                🗑️ Xóa
+              </button>
+            </div>
+          </div>
+          <div style="font-size: 0.95rem; line-height: 1.5; margin-bottom: 0.75rem; color: #334155;">
+            ${m.prompt}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: #f8fafc; padding: 0.65rem 0.85rem; border-radius: 0.4rem; font-size: 0.85rem; margin-bottom: 0.5rem;">
+            <div><span style="color: #dc2626; font-weight: 700;">❌ Bạn đã chọn:</span> ${typeof m.user_answer === 'object' ? JSON.stringify(m.user_answer) : m.user_answer}</div>
+            <div><span style="color: #16a34a; font-weight: 700;">✅ Đáp án đúng:</span> ${typeof m.correct_answer === 'object' ? JSON.stringify(m.correct_answer) : m.correct_answer}</div>
+          </div>
+          ${m.explanation ? `
+            <div style="font-size: 0.85rem; color: #475569; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 0.5rem 0.75rem; border-radius: 0.2rem;">
+              <strong>💡 Phân tích & Lời giải:</strong> ${m.explanation}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    app.renderMath(container);
+  },
+  deleteItem(id) {
+    let items = this.getItems().filter(m => m.id !== id);
+    localStorage.setItem('dgnl_mistakes_notebook', JSON.stringify(items));
+    this.render();
+  },
+  clearAll() {
+    if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ câu hỏi trong Sổ tay câu sai không?")) return;
+    localStorage.removeItem('dgnl_mistakes_notebook');
+    this.render();
+  },
+  startDrill() {
+    const items = this.getItems();
+    if (items.length === 0) {
+      alert("Sổ tay chưa có câu sai nào để luyện tập!");
+      return;
+    }
+    this.closeModal();
+    // Lấy tối đa 10 câu
+    const drillSet = items.slice(0, 10);
+    examRunner.startCustomMistakePractice(drillSet);
+  },
+  updateBadge() {
+    const items = this.getItems();
+    const badge = document.getElementById('mistakes-count-badge');
+    if (badge) {
+      if (items.length > 0) {
+        badge.innerText = items.length;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
     }
   }
 };

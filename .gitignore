@@ -34,6 +34,11 @@ ENV/
 *.rar
 *.zip
 
+# Temporary generated charts & scratch files
+static/charts/chart_gen_*.png
+scratch/
+.pytest_cache/
+
 # IDE & OS
 .vscode/
 .idea/

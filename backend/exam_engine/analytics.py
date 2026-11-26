@@ -67,9 +67,14 @@ def generate_radar_chart_base64(domain_stats: Dict[str, Any]) -> str:
     return f"data:image/png;base64,{img_b64}"
 
 
-def calculate_competency_insights(domain_stats: Dict[str, Any], total_score: float) -> Dict[str, Any]:
+def calculate_competency_insights(
+    domain_stats: Dict[str, Any], 
+    total_score: float,
+    max_score: float = 1200.0,
+    is_spt: bool = False
+) -> Dict[str, Any]:
     """
-    Phân tích ma trận điểm mạnh, điểm yếu và ước tính phân vị ĐGNL.
+    Phân tích ma trận điểm mạnh, điểm yếu và ước tính phân vị ĐGNL (V-ACT hoặc SPT).
     """
     records = [
         {
@@ -94,26 +99,44 @@ def calculate_competency_insights(domain_stats: Dict[str, Any], total_score: flo
     weak_areas = [r for r in sorted_records if r["percentage"] < 50.0]
     moderate_areas = [r for r in sorted_records if 50.0 <= r["percentage"] < 70.0]
 
-    # Ước tính phân vị (Percentile) dựa trên phân phối phổ điểm ĐGNL ĐHQG (phân phối chuẩn quanh kỳ vọng 650, lệch chuẩn 140)
     import math
-    # Mean = 650, Std = 135
-    z = (total_score - 650) / 135.0
-    percentile = round(float(0.5 * (1.0 + math.erf(z / math.sqrt(2.0))) * 100), 1)
-    percentile = min(99.9, max(1.0, percentile))
+    if is_spt or max_score <= 20.0:
+        # Thang điểm 10 chuẩn SPT ĐH Sư Phạm Hà Nội (Mean = 6.0, Std = 1.5)
+        z = (total_score - 6.0) / 1.5
+        percentile = round(float(0.5 * (1.0 + math.erf(z / math.sqrt(2.0))) * 100), 1)
+        percentile = min(99.9, max(1.0, percentile))
 
-    # Đánh giá xếp loại năng lực
-    if total_score >= 950:
-        tier = "Xuất sắc (Top 3% - Đủ điều kiện cạnh tranh các ngành hot nhất Y Đa khoa, KHMT ĐHQG)"
-        color = "#10b981"
-    elif total_score >= 800:
-        tier = "Giỏi (Top 15% - Rất có lợi thế xét tuyển ĐH Bách Khoa, Kinh Tế Luật, KHTN)"
-        color = "#3b82f6"
-    elif total_score >= 650:
-        tier = "Khá (Trên mức trung bình - Khả năng đỗ cao các trường khối ĐHQG)"
-        color = "#f59e0b"
+        if total_score >= 8.5:
+            tier = "Xuất sắc (Top 5% - Khả năng trúng tuyển rất cao vào các ngành mũi nhọn ĐH Sư Phạm Hà Nội)"
+            color = "#10b981"
+        elif total_score >= 7.0:
+            tier = "Giỏi (Top 20% - Cơ hội xét tuyển thuận lợi vào ĐH Sư Phạm Hà Nội)"
+            color = "#3b82f6"
+        elif total_score >= 5.0:
+            tier = "Khá / Đạt chuẩn (Đạt mức yêu cầu xét tuyển cơ bản)"
+            color = "#f59e0b"
+        else:
+            tier = "Cần tăng cường rèn luyện (Dưới mức trung bình kỳ thi SPT)"
+            color = "#ef4444"
     else:
-        tier = "Cần tăng cường rèn luyện (Dưới mức trung bình kỳ thi ĐGNL)"
-        color = "#ef4444"
+        # Thang điểm 1200 chuẩn V-ACT ĐHQG-HCM (Mean = 650, Std = 135)
+        z = (total_score - 650) / 135.0
+        percentile = round(float(0.5 * (1.0 + math.erf(z / math.sqrt(2.0))) * 100), 1)
+        percentile = min(99.9, max(1.0, percentile))
+
+        # Đánh giá xếp loại năng lực V-ACT
+        if total_score >= 950:
+            tier = "Xuất sắc (Top 3% - Đủ điều kiện cạnh tranh các ngành hot nhất Y Đa khoa, KHMT ĐHQG)"
+            color = "#10b981"
+        elif total_score >= 800:
+            tier = "Giỏi (Top 15% - Rất có lợi thế xét tuyển ĐH Bách Khoa, Kinh Tế Luật, KHTN)"
+            color = "#3b82f6"
+        elif total_score >= 650:
+            tier = "Khá (Trên mức trung bình - Khả năng đỗ cao các trường khối ĐHQG)"
+            color = "#f59e0b"
+        else:
+            tier = "Cần tăng cường rèn luyện (Dưới mức trung bình kỳ thi ĐGNL)"
+            color = "#ef4444"
 
     return {
         "strong_areas": strong_areas,

@@ -277,7 +277,40 @@ def grade_submission(
                     status = "wrong"
 
         # -------------------------------------------------------------
-        # DẠNG 3: TRẮC NGHIỆM ĐƠN LỰA CHỌN (A, B, C, D)
+        # DẠNG 3: TỰ LUẬN (ESSAY) - CHẤM ĐIỂM BẰNG AI THEO BAREM KHẢO THÍ
+        # -------------------------------------------------------------
+        elif q_type == "essay":
+            q_type = "essay"
+            essay_text = str(user_ans).strip() if user_ans is not None else ""
+            if not essay_text:
+                status = "unanswered"
+                unanswered_count += 1
+            else:
+                from backend.exam_engine.essay_grader import grade_essay_with_ai
+                rubric = q.get("correct_answer") or q.get("explanation") or "Đánh giá các bước giải và lập luận tự luận theo barem chuẩn."
+                eval_res = grade_essay_with_ai(
+                    prompt=q.get("prompt", ""),
+                    student_essay=essay_text,
+                    official_rubric=str(rubric),
+                    max_points=q_point,
+                    subject_domain=domain
+                )
+                earned_point = eval_res.get("score", 0.0)
+                if earned_point >= q_point * 0.8:
+                    is_correct = True
+                    correct_count += 1
+                    status = "correct"
+                elif earned_point > 0:
+                    is_partial = True
+                    partial_count += 1
+                    status = "partial"
+                else:
+                    wrong_count += 1
+                    status = "wrong"
+                q["ai_essay_evaluation"] = eval_res
+
+        # -------------------------------------------------------------
+        # DẠNG 4: TRẮC NGHIỆM ĐƠN LỰA CHỌN (A, B, C, D)
         # -------------------------------------------------------------
         else:
             q_type = "multiple_choice"
@@ -328,7 +361,8 @@ def grade_submission(
             "explanation": q.get("explanation", ""),
             "prompt": q.get("prompt", ""),
             "options": q.get("options", {}),
-            "tf_statements": q.get("tf_statements", {})
+            "tf_statements": q.get("tf_statements", {}),
+            "ai_essay_evaluation": q.get("ai_essay_evaluation")
         })
 
     radar_data = {}

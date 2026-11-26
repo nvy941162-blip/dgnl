@@ -80,9 +80,15 @@ DOMAIN_ADVICE_CATALOG = {
     }
 }
 
-def generate_personalized_advice(domain_stats: Dict[str, Any], total_score: float) -> str:
+def generate_personalized_advice(
+    domain_stats: Dict[str, Any], 
+    total_score: float,
+    max_score: float = 1200.0,
+    is_spt: bool = False,
+    exam_title: str = ""
+) -> str:
     """
-    Sinh lời khuyên ôn tập cá nhân hóa.
+    Sinh lời khuyên ôn tập cá nhân hóa phù hợp với kỳ thi V-ACT (1200 điểm) hoặc SPT (10 điểm).
     Nếu có API Key (OpenAI hoặc Gemini), gọi LLM để viết lời khuyên sâu sắc.
     Nếu không, sử dụng heuristic engine tư vấn sư phạm chuyên sâu.
     """
@@ -92,23 +98,27 @@ def generate_personalized_advice(domain_stats: Dict[str, Any], total_score: floa
     # Kiểm tra xem có Gemini hoặc OpenAI để gọi AI trực tiếp không
     from backend.agent_council.gemini_rotator import gemini_rotator
     summary_stats = "\n".join([f"- {v['name']}: {v['percentage']}% ({v['correct']}/{v['total']} câu)" for k, v in domain_stats.items()])
-    prompt = f"""Bạn là Chuyên gia Khảo thí và Luyện thi Đánh giá Năng lực (ĐGNL) ĐHQG hàng đầu.
-Học sinh vừa hoàn thành bài thi thử ĐGNL với kết quả:
-- Tổng điểm: {total_score}/1200 điểm
+    
+    scale_label = f"{total_score}/{max_score:.1f} điểm (thang 10 điểm SPT ĐH Sư Phạm Hà Nội)" if (is_spt or max_score <= 20.0) else f"{total_score}/1200 điểm (thang chuẩn ĐGNL ĐHQG)"
+    time_guideline = "trong thời gian làm bài (60 - 90 phút)" if (is_spt or max_score <= 20.0) else "(150 phút cho 120 câu)"
+
+    prompt = f"""Bạn là Chuyên gia Khảo thí và Cố vấn Luyện thi Đánh giá Năng lực (ĐGNL) hàng đầu.
+Học sinh vừa hoàn thành bài thi thử '{exam_title or 'ĐGNL'}' với kết quả:
+- Tổng điểm: {scale_label}
 - Chi tiết từng phần:
 {summary_stats}
 
 Hãy viết một báo cáo tư vấn và lộ trình ôn tập cá nhân hóa dành riêng cho học sinh này:
 1. Đánh giá tổng quan phong độ và phân vị điểm số.
 2. Phân tích cụ thể các lỗ hổng tư duy và kiến thức tại các môn yếu nhất.
-3. Kế hoạch hành động 4 tuần tập trung để bứt phá 150 - 200 điểm.
-4. Lời khuyên chiến thuật phân bổ thời gian trong phòng thi (150 phút cho 120 câu).
+3. Kế hoạch hành động tập trung để bứt phá điểm số trong kỳ thi sắp tới.
+4. Lời khuyên chiến thuật phân bổ thời gian trong phòng thi {time_guideline}.
 Viết bằng tiếng Việt với văn phong truyền cảm hứng, ngắn gọn, khoa học và giàu tính định hướng thực chiến."""
 
     if gemini_rotator.keys:
         ok, text_res, _ = gemini_rotator.generate_content(
             prompt=prompt,
-            system_instruction="Bạn là chuyên gia cố vấn khảo thí kỳ thi ĐGNL ĐHQG."
+            system_instruction="Bạn là chuyên gia cố vấn khảo thí kỳ thi ĐGNL."
         )
         if ok and len(text_res) > 100:
             return text_res
@@ -120,7 +130,7 @@ Viết bằng tiếng Việt với văn phong truyền cảm hứng, ngắn gọ
             response = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[
-                    {"role": "system", "content": "Bạn là chuyên gia cố vấn khảo thí kỳ thi ĐGNL ĐHQG."},
+                    {"role": "system", "content": "Bạn là chuyên gia cố vấn khảo thí kỳ thi ĐGNL."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
@@ -132,17 +142,29 @@ Viết bằng tiếng Việt với văn phong truyền cảm hứng, ngắn gọ
 
     # Rule-based Pedagogical Advisory Engine
     advice_lines = []
-    advice_lines.append(f"### 🎯 ĐÁNH GIÁ TỔNG THỂ KẾT QUẢ THI ({total_score}/1200 ĐIỂM)")
-    if total_score >= 850:
-        advice_lines.append("Chúc mừng bạn! Điểm số của bạn đang nằm trong top thí sinh có năng lực tư duy xuất sắc. Bạn đã có nền tảng vững vàng ở hầu hết các phân môn.")
-    elif total_score >= 700:
-        advice_lines.append("Kết quả của bạn rất khả quan và đạt trên mức điểm trung bình kỳ thi ĐGNL. Bạn hoàn toàn có tiềm năng chạm mốc 850 - 900+ nếu khắc phục một số điểm mù tư duy.")
+    display_max = f"{max_score:.1f}" if (is_spt or max_score <= 20.0) else f"{int(max_score)}"
+    advice_lines.append(f"### 🎯 ĐÁNH GIÁ TỔNG THỂ KẾT QUẢ THI ({total_score}/{display_max} ĐIỂM)")
+
+    if is_spt or max_score <= 20.0:
+        if total_score >= 8.5:
+            advice_lines.append("Chúc mừng bạn! Điểm số của bạn đạt mức Xuất sắc. Bạn có nền tảng kiến thức môn học rất vững vàng và năng lực tư duy sắc bén.")
+        elif total_score >= 7.0:
+            advice_lines.append("Kết quả của bạn rất khả quan, đạt mức Giỏi. Nếu rèn luyện thêm các câu hỏi vận dụng cao và tối ưu hóa thời gian, bạn hoàn toàn có thể chạm mốc 9.0+.")
+        elif total_score >= 5.0:
+            advice_lines.append("Bạn đã đạt trên mức điểm trung bình yêu cầu. Hãy củng cố thêm các phần lý thuyết căn bản và rèn luyện kỹ năng giải các câu hỏi điền đáp số.")
+        else:
+            advice_lines.append("Kết quả cho thấy bạn cần rà soát lại các kiến thức trọng tâm của môn học và luyện tập thêm các đề thi tham khảo chuẩn hóa.")
     else:
-        advice_lines.append("Bạn đã hoàn thành bài thi 120 câu đầy thử thách. Điểm số hiện tại cho thấy bạn cần một chiến lược ôn tập trọng tâm và điều chỉnh lại tốc độ làm bài để tối ưu hóa điểm số.")
+        if total_score >= 850:
+            advice_lines.append("Chúc mừng bạn! Điểm số của bạn đang nằm trong top thí sinh có năng lực tư duy xuất sắc. Bạn đã có nền tảng vững vàng ở hầu hết các phân môn.")
+        elif total_score >= 700:
+            advice_lines.append("Kết quả của bạn rất khả quan và đạt trên mức điểm trung bình kỳ thi ĐGNL. Bạn hoàn toàn có tiềm năng chạm mốc 850 - 900+ nếu khắc phục một số điểm mù tư duy.")
+        else:
+            advice_lines.append("Bạn đã hoàn thành bài thi 120 câu đầy thử thách. Điểm số hiện tại cho thấy bạn cần một chiến lược ôn tập trọng tâm và điều chỉnh lại tốc độ làm bài để tối ưu hóa điểm số.")
 
     if strong_keys:
         strong_names = ", ".join([domain_stats[k]["name"] for k in strong_keys])
-        advice_lines.append(f"\n**🌟 Điểm mạnh nổi trội:** Bạn làm rất tốt ở các môn: **{strong_names}**. Hãy duy trì phong độ này bằng cách luyện các đề nâng cao định kỳ.")
+        advice_lines.append(f"\n**🌟 Điểm mạnh nổi trội:** Bạn làm rất tốt ở các nội dung: **{strong_names}**. Hãy duy trì phong độ này bằng cách luyện các đề nâng cao định kỳ.")
 
     if weak_keys:
         weak_names = ", ".join([domain_stats[k]["name"] for k in weak_keys])
@@ -155,9 +177,15 @@ Viết bằng tiếng Việt với văn phong truyền cảm hứng, ngắn gọ
                 for tip in catalog["tips"]:
                     advice_lines.append(f"- {tip}")
 
-    advice_lines.append("\n#### ⏱️ Chiến thuật Quản trị Thời gian 150 phút (120 câu):")
-    advice_lines.append("- **Vòng 1 (70 phút đầu):** Giải quyết tất cả các câu Nhận biết - Thông hiểu trong 3 phần (nhắm mục tiêu đạt chắc 60 - 70 câu đúng). Câu nào đọc quá 60 giây chưa ra hướng thì đánh dấu cờ (Flag) và bỏ qua ngay.")
-    advice_lines.append("- **Vòng 2 (55 phút tiếp theo):** Xử lý các bài đọc hiểu dài, bài toán tư duy logic bảng biểu và phân tích số liệu.")
-    advice_lines.append("- **Vòng 3 (25 phút cuối):** Giải quyết các câu Vận dụng cao đã gắn cờ, sau đó kiểm tra chắc chắn đã tô đủ 120 câu hỏi (tuyệt đối không để trống).")
+    if is_spt or max_score <= 20.0:
+        advice_lines.append("\n#### ⏱️ Chiến thuật Quản trị Thời gian thi SPT:")
+        advice_lines.append("- **40% thời gian đầu:** Giải quyết dứt điểm phần trắc nghiệm khách quan nhiều lựa chọn (chắc chắn ăn điểm các câu nhận biết - thông hiểu).")
+        advice_lines.append("- **35% thời gian tiếp theo:** Tập trung đọc kỹ và xử lý các câu trắc nghiệm Đúng/Sai 4 ý và câu hỏi điền đáp số ngắn.")
+        advice_lines.append("- **25% thời gian cuối:** Trình bày rõ ràng phần tự luận / phân tích và rà soát lại toàn bộ phiếu làm bài.")
+    else:
+        advice_lines.append("\n#### ⏱️ Chiến thuật Quản trị Thời gian 150 phút (120 câu):")
+        advice_lines.append("- **Vòng 1 (70 phút đầu):** Giải quyết tất cả các câu Nhận biết - Thông hiểu trong 3 phần (nhắm mục tiêu đạt chắc 60 - 70 câu đúng). Câu nào đọc quá 60 giây chưa ra hướng thì đánh dấu cờ (Flag) và bỏ qua ngay.")
+        advice_lines.append("- **Vòng 2 (55 phút tiếp theo):** Xử lý các bài đọc hiểu dài, bài toán tư duy logic bảng biểu và phân tích số liệu.")
+        advice_lines.append("- **Vòng 3 (25 phút cuối):** Giải quyết các câu Vận dụng cao đã gắn cờ, sau đó kiểm tra chắc chắn đã tô đủ 120 câu hỏi (tuyệt đối không để trống).")
 
     return "\n".join(advice_lines)

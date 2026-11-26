@@ -8,7 +8,7 @@ code_to_append = '''
 # --------------------------------------------------------------------------
 SPT_CIVICS_LAW_EXAM = {
     "id": "spt_sample_civics_law",
-    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn GDKT&PL (Mã đề 075)",
+    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn GDKT&PL",
     "description": "Đề thi chính thức Kì thi ĐGNL ĐH Sư phạm Hà Nội. Cấu trúc 3 phần: Trắc nghiệm khách quan (16 câu), Trắc nghiệm Đúng/Sai (3 câu 12 ý), Tự luận (2 câu).",
     "exam_type": "spt",
     "subject": "civics_law",
@@ -392,7 +392,7 @@ SPT_CIVICS_LAW_EXAM = {
 # --------------------------------------------------------------------------
 SPT_TECH_INDUSTRY_EXAM = {
     "id": "spt_sample_tech_industry",
-    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Công Nghiệp (Mã đề 075)",
+    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Công Nghiệp",
     "description": "Đề thi chính thức Kì thi ĐGNL ĐH Sư phạm Hà Nội. Cấu trúc 4 phần: Trắc nghiệm (16 câu), Đúng/Sai (2 câu 8 ý), Điền đáp số ngắn (4 câu), Tự luận (2 câu).",
     "exam_type": "spt",
     "subject": "tech_industry",
@@ -803,7 +803,7 @@ SPT_TECH_INDUSTRY_EXAM = {
 # --------------------------------------------------------------------------
 SPT_TECH_AGRICULTURE_EXAM = {
     "id": "spt_sample_tech_agriculture",
-    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Nông Nghiệp (Mã đề 075)",
+    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Công Nghệ Nông Nghiệp",
     "description": "Đề thi chính thức Kì thi ĐGNL ĐH Sư phạm Hà Nội. Cấu trúc 4 phần: Trắc nghiệm (16 câu), Đúng/Sai (2 câu 8 ý), Điền đáp số ngắn (4 câu), Tự luận (2 câu).",
     "exam_type": "spt",
     "subject": "tech_agriculture",

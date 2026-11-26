@@ -77,7 +77,7 @@ def seed_benchmark_exam():
             db.add(vact_exam)
             print("Successfully seeded V-ACT 2026 official sample exam into database!")
 
-        # 3. Nạp 8 Đề Tham Khảo SPT (ĐH Sư phạm Hà Nội - Mã 075)
+        # 3. Nạp 8 Đề Tham Khảo SPT (ĐH Sư phạm Hà Nội)
         for spt in ALL_SPT_SAMPLE_EXAMS:
             existing_spt = db.query(ExamModel).filter(ExamModel.id == spt["id"]).first()
             if not existing_spt:
@@ -120,6 +120,7 @@ class GenerateAgentRequest(BaseModel):
 class GenerateFullExamRequest(BaseModel):
     title: Optional[str] = "Đề Thi ĐGNL 120 Câu AI Tự Động"
     theme: Optional[str] = "Khoa học, Xã hội & Đổi mới"
+    mode: Optional[str] = "vact_full"
 
 class SaveSettingsRequest(BaseModel):
     openai_api_key: Optional[str] = None
@@ -291,7 +292,9 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
     # Phân tích năng lực chuyên sâu (Pandas & Scipy)
     competency_analysis = calculate_competency_insights(
         grade_report["domain_stats"], 
-        grade_report["total_score"]
+        grade_report["total_score"],
+        max_score=exam_max_score,
+        is_spt=grade_report.get("is_spt", False)
     )
     
     # Vẽ Biểu đồ Mạng nhện Radar Chart (Matplotlib)
@@ -300,7 +303,10 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
     # Sinh lời khuyên ôn tập cá nhân hóa từ Chuyên gia AI
     ai_advice = generate_personalized_advice(
         grade_report["domain_stats"],
-        grade_report["total_score"]
+        grade_report["total_score"],
+        max_score=exam_max_score,
+        is_spt=grade_report.get("is_spt", False),
+        exam_title=exam.title
     )
 
     # Lưu kết quả nộp bài vào DB
@@ -345,6 +351,335 @@ def get_submission(submission_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Không tìm thấy kết quả làm bài.")
     return sub.to_dict()
 
+from fastapi.responses import HTMLResponse
+
+@app.get("/api/exams/{exam_id}/print", response_class=HTMLResponse)
+def print_exam_paper(exam_id: str, db: Session = Depends(get_db)):
+    """
+    Xuất đề thi ra định dạng in ấn chuẩn khảo thí (A4 Printable PDF).
+    Bao gồm: Quốc hiệu, Tiêu đề kỳ thi, Mã đề, Hướng dẫn làm bài và Bảng đáp án trang cuối.
+    """
+    exam = db.query(ExamModel).filter(ExamModel.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đề thi.")
+
+    questions = json.loads(exam.data_json) if exam.data_json else []
+    is_spt = (exam.exam_type == "spt")
+    univ_header = "TRƯỜNG ĐẠI HỌC SƯ PHẠM HÀ NỘI" if is_spt else "ĐẠI HỌC QUỐC GIA TP. HỒ CHÍ MINH"
+    exam_badge = f"KỲ THI ĐÁNH GIÁ NĂNG LỰC ({'SPT' if is_spt else 'V-ACT'})"
+
+    # Xây dựng HTML danh sách câu hỏi
+    questions_html = []
+    answer_keys = []
+
+    for q in questions:
+        q_num = q.get("question_number", 1)
+        prompt = q.get("prompt", "")
+        q_type = q.get("question_type", "multiple_choice")
+        ans_raw = q.get("correct_answer", "")
+
+        opt_html = ""
+        if q_type == "multiple_choice":
+            options = q.get("options", {})
+            opt_items = "".join([f'<div class="print-opt"><strong>{k}.</strong> {v}</div>' for k, v in options.items()])
+            opt_html = f'<div class="print-opts-grid">{opt_items}</div>'
+            answer_keys.append((q_num, str(ans_raw)))
+        elif q_type == "true_false":
+            tf_map = q.get("tf_statements", {})
+            rows = "".join([f'<tr><td style="width: 30px; text-align: center;">{k}</td><td>{v}</td><td style="width: 60px; text-align: center;">[ &nbsp; ]</td></tr>' for k, v in tf_map.items()])
+            opt_html = f'<table class="print-tf-table"><thead><tr><th>Ý</th><th>Nội dung nhận định</th><th>Đúng/Sai</th></tr></thead><tbody>{rows}</tbody></table>'
+            c_dict = ans_raw if isinstance(ans_raw, dict) else {}
+            ans_str = ", ".join([f"{k}:{v}" for k, v in c_dict.items()])
+            answer_keys.append((q_num, ans_str))
+        elif q_type in ["short_answer", "fill_blank"]:
+            opt_html = '<div class="print-short-ans"><em>Đáp số của thí sinh:</em> ........................................................................................</div>'
+            answer_keys.append((q_num, str(ans_raw)))
+        elif q_type == "essay":
+            opt_html = '<div class="print-essay-space"><div class="print-dots"></div></div>'
+            answer_keys.append((q_num, "Theo barem"))
+
+        questions_html.append(f"""
+        <div class="print-question">
+          <div class="print-q-title"><strong>Câu {q_num}:</strong> {prompt}</div>
+          {opt_html}
+        </div>
+        """)
+
+    # Bảng đáp án ở cuối
+    key_rows = "".join([f'<div class="key-cell"><strong>{k}:</strong> {v}</div>' for k, v in answer_keys])
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>{exam.title} - Đề Thi Chuẩn In Ấn</title>
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <style>
+    @page {{
+      size: A4;
+      margin: 15mm 15mm 15mm 15mm;
+    }}
+    body {{
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 13pt;
+      line-height: 1.45;
+      color: #000;
+      background: #fff;
+      margin: 0;
+      padding: 10px;
+    }}
+    .print-header {{
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+      margin-bottom: 15px;
+    }}
+    .header-left, .header-right {{
+      width: 48%;
+      text-align: center;
+    }}
+    .header-left h3, .header-right h3 {{
+      margin: 0 0 4px 0;
+      font-size: 12pt;
+      font-weight: bold;
+    }}
+    .exam-title-box {{
+      text-align: center;
+      margin: 15px 0;
+    }}
+    .exam-title-box h1 {{
+      font-size: 16pt;
+      margin: 0 0 5px 0;
+      text-transform: uppercase;
+    }}
+    .exam-meta {{
+      font-style: italic;
+      font-size: 11pt;
+    }}
+    .candidate-info-box {{
+      border: 1px dashed #444;
+      padding: 8px 12px;
+      margin-bottom: 18px;
+      font-size: 11pt;
+      display: flex;
+      justify-content: space-between;
+    }}
+    .print-question {{
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+    }}
+    .print-q-title {{
+      margin-bottom: 4px;
+      text-align: justify;
+    }}
+    .print-opts-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 20px;
+      padding-left: 15px;
+    }}
+    .print-tf-table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 11pt;
+    }}
+    .print-tf-table th, .print-tf-table td {{
+      border: 1px solid #000;
+      padding: 4px 8px;
+    }}
+    .print-short-ans {{
+      margin-top: 6px;
+      padding-left: 15px;
+    }}
+    .print-essay-space {{
+      margin-top: 8px;
+      min-height: 80px;
+      border: 1px dotted #888;
+      border-radius: 4px;
+    }}
+    .page-break {{
+      page-break-before: always;
+    }}
+    .keys-section {{
+      margin-top: 30px;
+      border-top: 2px solid #000;
+      padding-top: 15px;
+    }}
+    .keys-grid {{
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      font-size: 10pt;
+    }}
+    .key-cell {{
+      border: 1px solid #ccc;
+      padding: 3px 6px;
+      text-align: center;
+    }}
+    .no-print {{
+      background: #4f46e5;
+      color: #fff;
+      padding: 10px 20px;
+      position: sticky;
+      top: 0;
+      text-align: center;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }}
+    .btn-print {{
+      background: #10b981;
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 15px;
+    }}
+    @media print {{
+      .no-print {{ display: none; }}
+      body {{ padding: 0; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <span>🖨️ Chế độ In Đề Thi Chuẩn Khảo Thí (A4 Printable Layout)</span>
+    <button class="btn-print" onclick="window.print()">In Đề Thi / Lưu PDF</button>
+  </div>
+
+  <div class="print-header">
+    <div class="header-left">
+      <h3>{univ_header}</h3>
+      <div>HỘI ĐỒNG KHẢO THÍ CHUẨN HÓA</div>
+      <div style="font-weight: bold; margin-top: 4px;">MÃ ĐỀ THI: {exam.id[-4:].upper()}</div>
+    </div>
+    <div class="header-right">
+      <h3>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h3>
+      <div style="text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</div>
+      <div style="font-style: italic; margin-top: 4px;">Ngày thi: ...../...../2026</div>
+    </div>
+  </div>
+
+  <div class="exam-title-box">
+    <h1>{exam.title}</h1>
+    <div class="exam-meta">
+      Thời gian làm bài: <strong>{exam.duration_minutes} phút</strong> (Không kể thời gian phát đề) • Số lượng: <strong>{exam.total_questions} câu hỏi</strong>
+    </div>
+  </div>
+
+  <div class="candidate-info-box">
+    <div>Họ và tên thí sinh: ............................................................................</div>
+    <div>Số báo danh: .................................</div>
+    <div>Phòng thi: ....................</div>
+  </div>
+
+  <div class="questions-container">
+    {''.join(questions_html)}
+  </div>
+
+  <div class="page-break"></div>
+
+  <div class="keys-section">
+    <h3 style="text-align: center; text-transform: uppercase;">BẢNG ĐÁP ÁN CHUẨN KHẢO THÍ (DÀNH CHO GIÁO VIÊN / CHẤM THI)</h3>
+    <div class="keys-grid">
+      {key_rows}
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {{
+      if (typeof renderMathInElement === 'function') {{
+        renderMathInElement(document.body, {{
+          delimiters: [
+            {{ left: '$$', right: '$$', display: true }},
+            {{ left: '$', right: '$', display: false }}
+          ]
+        }});
+      }}
+    }});
+  </script>
+</body>
+</html>
+"""
+    return HTMLResponse(content=html_content)
+
+@app.get("/api/history")
+def get_submission_history(db: Session = Depends(get_db)):
+    """Lấy danh sách lịch sử nộp bài thi để vẽ biểu đồ tiến bộ năng lực"""
+    subs = db.query(SubmissionModel).order_by(SubmissionModel.submitted_at.desc()).limit(30).all()
+    history = []
+    for s in subs:
+        exam = db.query(ExamModel).filter(ExamModel.id == s.exam_id).first()
+        exam_title = exam.title if exam else "Bài thi ĐGNL"
+        max_s = exam.max_score if (exam and exam.max_score) else (10.0 if (exam and exam.exam_type == "spt") else 1200.0)
+        history.append({
+            "id": s.id,
+            "exam_id": s.exam_id,
+            "exam_title": exam_title,
+            "submitted_at": s.submitted_at.strftime("%d/%m/%Y %H:%M") if s.submitted_at else "",
+            "total_score": s.total_score,
+            "max_score": max_s,
+            "percentage": round(s.total_score / max_s * 100.0, 1) if max_s > 0 else 0,
+            "time_spent_seconds": s.time_spent_seconds
+        })
+    return {"history": history}
+
+class AskTutorRequest(BaseModel):
+    prompt: str
+    user_answer: Optional[Any] = None
+    correct_answer: Optional[Any] = None
+    explanation: Optional[str] = None
+    question_type: Optional[str] = "multiple_choice"
+    student_query: Optional[str] = None
+
+@app.post("/api/exams/ask-tutor")
+def ask_ai_tutor(req: AskTutorRequest):
+    """
+    Gia sư AI Sư phạm (Interactive Pedagogical AI Tutor):
+    Giải thích cặn kẽ câu hỏi, phân tích lý do học sinh chọn sai, và gợi ý phương pháp giải thông minh.
+    """
+    from backend.agent_council.gemini_rotator import gemini_rotator
+
+    system_prompt = f"""Bạn là Thầy/Cô Gia Sư Khảo Thí giàu kinh nghiệm sư phạm, kiên nhẫn, gần gũi và truyền cảm hứng.
+Học sinh vừa làm một câu hỏi trong đề thi thử Đánh giá năng lực và muốn được thầy/cô giải đáp cặn kẽ.
+
+THÔNG TIN CÂU HỎI:
+- Nội dung câu hỏi: {req.prompt}
+- Dạng câu hỏi: {req.question_type}
+- Câu trả lời của học sinh: {req.user_answer}
+- Đáp án chính xác: {req.correct_answer}
+- Hướng dẫn giải chuẩn: {req.explanation}
+
+CÂU HỎI / THẮC MẮC CỦA HỌC SINH:
+{req.student_query or "Thầy/Cô hãy giải thích tại sao câu này lại chọn đáp án như vậy và con bị sai ở bước tư duy nào ạ?"}
+
+HƯỚNG DẪN TRẢ LỜI:
+1. Thân thiện, khen ngợi tinh thần học hỏi của học sinh.
+2. Phân tích rõ ràng: Vì sao học sinh chọn {req.user_answer} là bị bẫy ở đâu (lỗi kiến thức hay lỗi đọc đề).
+3. Hướng dẫn từng bước tư duy để tìm ra đáp án đúng {req.correct_answer}.
+4. Đưa ra 1 mẹo (Tip) làm bài nhanh cho dạng câu này để lần sau không mắc lại.
+Định dạng câu trả lời bằng Markdown rõ ràng, dùng KaTeX LaTeX cho công thức toán ($...$).
+"""
+
+    try:
+        success, reply, key_mask = gemini_rotator.generate_content(prompt=system_prompt)
+        if success and reply:
+            return {"tutor_reply": reply}
+    except Exception as e:
+        print(f"Error calling AI tutor: {e}")
+
+    return {
+        "tutor_reply": f"**Gia sư AI Sư phạm:**\n\nChào bạn! Câu hỏi này có đáp án chính xác là **{req.correct_answer}**.\n\n**Hướng dẫn giải chi tiết:**\n{req.explanation or 'Hãy chú ý đọc kỹ dữ kiện đề bài và áp dụng đúng công thức cơ bản.'}\n\n*💡 Mẹo khảo thí:* Hãy gạch chân từ khóa chính trong câu hỏi để tránh các phương án gây nhiễu nhé!"
+    }
+
 @app.post("/api/agents/generate")
 def generate_questions_with_council(req: GenerateAgentRequest):
     """
@@ -375,17 +710,62 @@ def generate_questions_with_council(req: GenerateAgentRequest):
 @app.post("/api/exams/generate-120")
 def generate_full_exam(req: GenerateFullExamRequest, db: Session = Depends(get_db)):
     """
-    Kích hoạt Hội đồng Tác tử LangGraph sinh trọn vẹn bộ đề 120 câu chuẩn ĐGNL.
-    Tự động chuẩn hóa số thứ tự đề (02 -> 03 -> 04...) nếu bị trùng lặp.
-    Chạy trong luồng nền và trả về task_id để frontend theo dõi tiến độ %.
+    Kích hoạt Hội đồng Tác tử LangGraph sinh đề:
+    - Nếu mode == 'vact_full': sinh trọn vẹn 120 câu chuẩn ĐGNL V-ACT (150 phút, 1200 điểm IRT).
+    - Nếu mode là SPT (spt_math, spt_english,...): sinh đúng số lượng câu và thời gian y hệt đề mẫu ĐHSP HN (thang điểm 10.0).
     """
-    final_title = resolve_next_exam_title(req.title, db)
-    from backend.agent_council.full_exam_generator import full_exam_generator
+    mode = (req.mode or "vact_full").strip()
+    title_raw = (req.title or "").strip()
+    theme_raw = (req.theme or "").strip()
+    title_lower = title_raw.lower()
+    theme_lower = theme_raw.lower()
+
+    # Nhận diện thông minh nếu mode chưa được gửi chuẩn hoặc bị mặc định vact_full
+    if mode == "vact_full":
+        # Toán học
+        if any(k in title_lower or k in theme_lower for k in ["toán", "đại số", "giải tích", "hình học", "lượng giác", "xác suất", "tích phân", "đạo hàm", "spt_math"]):
+            mode = "spt_math"
+        # Tiếng Anh
+        elif any(k in title_lower or k in theme_lower for k in ["tiếng anh", "english", "lexico", "reading comprehension", "word formation", "spt_english"]):
+            mode = "spt_english"
+        # Hóa học
+        elif any(k in title_lower or k in theme_lower for k in ["hóa", "chemistry", "hữu cơ", "vô cơ", "este", "phản ứng", "cân bằng hóa học", "spt_chemistry"]):
+            mode = "spt_chemistry"
+        # Địa lí
+        elif any(k in title_lower or k in theme_lower for k in ["địa", "geography", "dân cư", "vùng kinh tế", "địa hình", "khí hậu", "spt_geography"]):
+            mode = "spt_geography"
+        # Lịch sử
+        elif any(k in title_lower or k in theme_lower for k in ["lịch sử", "history", "cách mạng", "chiến dịch", "kháng chiến", "hiệp định", "sử", "spt_history"]):
+            mode = "spt_history"
+        # GDKT & Pháp luật
+        elif any(k in title_lower or k in theme_lower for k in ["gdkt", "pháp luật", "kinh tế thị trường", "công dân", "hiến pháp", "spt_civics"]):
+            mode = "spt_civics"
+        # Công nghệ Công nghiệp
+        elif any(k in title_lower or k in theme_lower for k in ["công nghiệp", "cơ khí", "mạch điện", "bản vẽ", "tự động hóa", "công nghệ cn", "spt_tech_ind"]):
+            mode = "spt_tech_ind"
+        # Công nghệ Nông nghiệp
+        elif any(k in title_lower or k in theme_lower for k in ["nông nghiệp", "lâm nghiệp", "thủy sản", "trồng trọt", "chăn nuôi", "công nghệ nn", "spt_tech_agr"]):
+            mode = "spt_tech_agr"
+
+    from backend.agent_council.full_exam_generator import SPT_CONFIGS, full_exam_generator
+
+    if mode in SPT_CONFIGS:
+        cfg = SPT_CONFIGS[mode]
+        # Nếu tiêu đề bị dính chữ "ĐGNL Số..." do cache cũ, tự động đổi về tiêu đề chuẩn của môn SPT
+        if not title_raw or "đgnl số" in title_lower or "đề thi đgnl" in title_lower:
+            final_title = f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {cfg['name']}"
+        else:
+            final_title = title_raw
+    else:
+        mode = "vact_full"
+        final_title = resolve_next_exam_title(title_raw, db)
+
     task_id = full_exam_generator.generate_full_exam_async(
         exam_title=final_title,
-        topic_theme=req.theme or "Khoa học, Xã hội & Đổi mới"
+        topic_theme=theme_raw or "Chương trình GDPT 2018",
+        mode=mode
     )
-    return {"status": "started", "task_id": task_id, "resolved_title": final_title}
+    return {"status": "started", "task_id": task_id, "resolved_title": final_title, "mode": mode}
 
 @app.get("/api/exams/generate-120/status/{task_id}")
 def get_generation_status(task_id: str):
@@ -403,7 +783,7 @@ def get_settings():
     gemini_rotator.reload_keys()
     return {
         "gemini_keys_count": len(gemini_rotator.keys),
-        "gemini_model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        "gemini_model": gemini_rotator.model or os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"),
         "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
         "openai_model": os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     }
@@ -441,8 +821,10 @@ def update_settings(req: SaveSettingsRequest):
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(env_lines)
 
-    # Nạp lại keys cho rotator
+    # Nạp lại keys và model cho rotator
     from backend.agent_council.gemini_rotator import gemini_rotator
+    if req.gemini_model:
+        gemini_rotator.model = req.gemini_model
     gemini_rotator.reload_keys()
 
     return {

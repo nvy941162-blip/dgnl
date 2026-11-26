@@ -91,7 +91,7 @@ SPT_SUBJECTS_METADATA = [
 # --------------------------------------------------------------------------
 SPT_MATH_EXAM = {
     "id": "spt_sample_math",
-    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Toán (Mã đề 075)",
+    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Toán",
     "description": "Đề thi chính thức Kì thi ĐGNL ĐH Sư phạm Hà Nội. Cấu trúc 4 phần: Trắc nghiệm khách quan (16 câu), Trắc nghiệm Đúng/Sai (2 câu 8 ý), Điền kết quả ngắn (4 câu), Tự luận (3 câu).",
     "exam_type": "spt",
     "subject": "math",
@@ -512,7 +512,7 @@ SPT_MATH_EXAM = {
 # --------------------------------------------------------------------------
 SPT_ENGLISH_EXAM = {
     "id": "spt_sample_english",
-    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Tiếng Anh (Mã đề 075)",
+    "title": "Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn Tiếng Anh",
     "description": "Đề thi chính thức Kì thi ĐGNL ĐH Sư phạm Hà Nội. Cấu trúc: Use of English (18 câu), Reading Comprehension (10 câu), Word Formation (4 câu), Writing essay (1 câu).",
     "exam_type": "spt",
     "subject": "english",

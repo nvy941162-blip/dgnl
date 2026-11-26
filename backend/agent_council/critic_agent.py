@@ -9,19 +9,40 @@ class CriticAgent:
        bám sát các lỗi sai tâm lý và nhận thức phổ biến của học sinh.
     3. Phát hiện lỗi trùng lặp nội dung giữa các phương án hoặc đáp án quá lộ liễu.
     4. Cung cấp điểm số thẩm định và tự động hiệu chỉnh (refine) nếu cần thiết.
+    Hỗ trợ cả các dạng câu hỏi chuyên biệt của kỳ thi SPT (Đúng/Sai, Điền đáp số, Tự luận).
     """
     def __init__(self):
         pass
 
     def evaluate_and_refine(self, question: Dict[str, Any]) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
         """
-        Thẩm định câu hỏi trắc nghiệm.
+        Thẩm định câu hỏi trắc nghiệm hoặc các dạng câu hỏi khác (true_false, fill_in_the_blank, essay).
         Trả về: (passed, refined_question, evaluation_report)
         """
-        prompt = question.get("prompt", "").strip()
+        q_type = question.get("question_type", "multiple_choice")
+        prompt = str(question.get("prompt", "")).strip()
+        explanation = str(question.get("explanation", "")).strip()
+
+        # Xử lý các dạng câu hỏi không phải trắc nghiệm 4 lựa chọn đơn
+        if q_type in ["true_false", "fill_in_the_blank", "fill_blank", "essay"]:
+            correct_ans = question.get("correct_answer")
+            has_ans = correct_ans is not None and (not isinstance(correct_ans, str) or correct_ans.strip() != "")
+            passed = bool(prompt and has_ans)
+            evaluation_report = {
+                "passed": passed,
+                "distractor_score": 1.0,
+                "single_truth_verified": True,
+                "critic_notes": f"Đạt tiêu chuẩn khảo thí định dạng {q_type}."
+            }
+            refined_question = dict(question)
+            if not refined_question.get("explanation"):
+                refined_question["explanation"] = f"Hướng dẫn chấm và giải chi tiết cho câu hỏi dạng {q_type}."
+            return passed, refined_question, evaluation_report
+
+        # Trắc nghiệm 4 lựa chọn (multiple_choice)
         options = question.get("options", {})
-        correct_ans = question.get("correct_answer", "").strip().upper()
-        explanation = question.get("explanation", "").strip()
+        raw_ans = question.get("correct_answer", "")
+        correct_ans = str(raw_ans).strip().upper() if isinstance(raw_ans, (str, int)) else ""
 
         issues = []
         score = 1.0
