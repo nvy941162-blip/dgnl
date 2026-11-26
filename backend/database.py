@@ -38,10 +38,32 @@ class ExamModel(Base):
             "questions": json.loads(self.data_json) if self.data_json else []
         }
 
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(String(64), primary_key=True, index=True)
+    username = Column(String(64), unique=True, index=True, nullable=False)
+    password_hash = Column(String(256), nullable=False)
+    full_name = Column(String(128), nullable=False)
+    student_class = Column(String(64), nullable=True) # Ví dụ: "12A1"
+    school = Column(String(128), nullable=True)        # Ví dụ: "THPT Chuyên"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "full_name": self.full_name,
+            "student_class": self.student_class or "",
+            "school": self.school or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
 class SubmissionModel(Base):
     __tablename__ = "submissions"
 
     id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), nullable=True, index=True) # Khóa ngoại liên kết UserModel
     exam_id = Column(String(64), nullable=False, index=True)
     candidate_name = Column(String(128), default="Thí sinh ĐGNL")
     started_at = Column(DateTime, default=datetime.utcnow)
@@ -63,6 +85,7 @@ class SubmissionModel(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "user_id": self.user_id,
             "exam_id": self.exam_id,
             "candidate_name": self.candidate_name,
             "started_at": self.started_at.isoformat() if self.started_at else None,
@@ -91,6 +114,12 @@ def init_db():
                 cursor.execute("ALTER TABLE exams ADD COLUMN subject VARCHAR(64)")
             if "max_score" not in columns:
                 cursor.execute("ALTER TABLE exams ADD COLUMN max_score FLOAT DEFAULT 1200.0")
+            
+            # Cập nhật migration cho bảng submissions nếu thiếu user_id
+            cursor.execute("PRAGMA table_info(submissions)")
+            sub_columns = [row[1] for row in cursor.fetchall()]
+            if "user_id" not in sub_columns:
+                cursor.execute("ALTER TABLE submissions ADD COLUMN user_id VARCHAR(64)")
             conn.connection.commit()
     except Exception as e:
         print(f"Database migration note: {e}")

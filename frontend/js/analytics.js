@@ -278,26 +278,46 @@ const analyticsView = {
 
   async loadHistoryChart() {
     try {
-      const res = await fetch('/api/history');
+      const user = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+      let url = '/api/history';
+      if (user) {
+        url += `?user_id=${encodeURIComponent(user.id)}&candidate_name=${encodeURIComponent(user.full_name)}`;
+      }
+
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = await res.json();
       const history = data.history || [];
       const historyContainer = document.getElementById('analytics-history-section');
-      if (!historyContainer || history.length === 0) return;
+      if (!historyContainer) return;
+
+      const historyList = document.getElementById('analytics-history-list');
+      if (history.length === 0) {
+        if (historyList) {
+          historyList.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 1.5rem;">Học sinh <strong>${user ? user.full_name : ''}</strong> chưa có lịch sử làm bài nào. Hãy bắt đầu làm bài thi để tích lũy điểm nhé!</div>`;
+        }
+        return;
+      }
 
       historyContainer.style.display = 'block';
-      const historyList = document.getElementById('analytics-history-list');
       if (historyList) {
         historyList.innerHTML = history.slice(0, 10).map(h => `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem;">
             <div>
               <strong style="color: var(--primary);">${h.exam_title}</strong>
-              <div style="font-size: 0.8rem; color: #64748b;">${h.submitted_at} • Thời gian: ${Math.round(h.time_spent_seconds / 60)} phút</div>
+              <div style="font-size: 0.8rem; color: #64748b;">${h.submitted_at} • Thời gian: ${Math.round(h.time_spent_seconds / 60)} phút • Thí sinh: ${h.candidate_name || 'Học sinh'}</div>
             </div>
             <div style="text-align: right;">
               <span style="font-weight: 700; font-size: 1.05rem; color: var(--success);">${h.total_score} / ${h.max_score}đ</span>
               <div style="font-size: 0.8rem; color: #475569;">Đạt ${h.percentage}%</div>
             </div>
+          </div>
+        `).join('');
+      }
+    } catch (e) {
+      console.warn("Could not load history", e);
+    }
+  },
           </div>
         `).join('');
       }

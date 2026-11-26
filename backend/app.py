@@ -4,8 +4,9 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
+import hashlib
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi import FastAPI, Depends, HTTPException, Body, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -16,7 +17,7 @@ from backend.config import (
     APP_TITLE, APP_VERSION, STATIC_DIR, FRONTEND_DIR,
     OPENAI_API_KEY, GEMINI_API_KEY, OPENAI_MODEL
 )
-from backend.database import init_db, get_db, ExamModel, SubmissionModel
+from backend.database import init_db, get_db, ExamModel, SubmissionModel, UserModel
 from backend.exam_engine.benchmark_exam import BENCHMARK_EXAM_METADATA, BENCHMARK_QUESTIONS
 from backend.exam_engine.spt_sample_data import ALL_SPT_SAMPLE_EXAMS, SPT_SUBJECTS_METADATA
 from backend.exam_engine.vact_2026_data import VACT_2026_SAMPLE_EXAM
@@ -106,8 +107,20 @@ def seed_benchmark_exam():
 seed_benchmark_exam()
 
 # --- Pydantic Schemas ---
+class RegisterUserRequest(BaseModel):
+    username: str
+    password: str
+    full_name: str
+    student_class: Optional[str] = "12A1"
+    school: Optional[str] = "THPT Chuyên"
+
+class LoginUserRequest(BaseModel):
+    username: str
+    password: str
+
 class SubmitExamRequest(BaseModel):
     candidate_name: Optional[str] = "Thí sinh ĐGNL"
+    user_id: Optional[str] = None
     answers: Dict[str, Any] # { "1": "A", "17": {"a": "Đ", ...}, ... }
     time_spent_seconds: int
 
@@ -130,6 +143,88 @@ class SaveSettingsRequest(BaseModel):
     openai_model: Optional[str] = None
 
 # --- API Endpoints ---
+
+# --- Authentication & Student Profile Endpoints ---
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.strip().encode("utf-8")).hexdigest()
+
+@app.post("/api/auth/register")
+def register_student(req: RegisterUserRequest, db: Session = Depends(get_db)):
+    """Đăng ký tài khoản học sinh mới"""
+    uname = req.username.strip().lower()
+    if not uname:
+        raise HTTPException(status_code=400, detail="Tên đăng nhập không được để trống.")
+    if len(req.password.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải từ 3 ký tự trở lên.")
+    
+    existing = db.query(UserModel).filter(UserModel.username == uname).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Tên tài khoản '{uname}' đã tồn tại, vui lòng chọn tên khác.")
+
+    user_id = f"stu_{uuid.uuid4().hex[:10]}"
+    user = UserModel(
+        id=user_id,
+        username=uname,
+        password_hash=hash_password(req.password),
+        full_name=req.full_name.strip() or "Học sinh",
+        student_class=req.student_class.strip() if req.student_class else "12",
+        school=req.school.strip() if req.school else "THPT"
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "status": "success",
+        "message": "Đăng ký tài khoản thành công!",
+        "user": user.to_dict()
+    }
+
+@app.post("/api/auth/login")
+def login_student(req: LoginUserRequest, db: Session = Depends(get_db)):
+    """Đăng nhập tài khoản học sinh"""
+    uname = req.username.strip().lower()
+    user = db.query(UserModel).filter(UserModel.username == uname).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Tài khoản không tồn tại trên hệ thống.")
+    
+    if user.password_hash != hash_password(req.password):
+        raise HTTPException(status_code=401, detail="Mật khẩu không chính xác, vui lòng kiểm tra lại.")
+
+    return {
+        "status": "success",
+        "message": f"Chào mừng {user.full_name} đăng nhập thành công!",
+        "user": user.to_dict()
+    }
+
+@app.get("/api/auth/students")
+def list_demo_students(db: Session = Depends(get_db)):
+    """Danh sách học sinh (phục vụ chọn nhanh hồ sơ khi trình diễn KHKT)"""
+    users = db.query(UserModel).order_by(UserModel.created_at.desc()).limit(15).all()
+    # Nếu chưa có học sinh nào, tự động seed 2 học sinh mẫu tiện cho thi cử & KHKT
+    if not users:
+        demo1 = UserModel(
+            id="stu_ngoc_vy",
+            username="ngocvy",
+            password_hash=hash_password("123"),
+            full_name="Nguyễn Ngọc Yến Vy",
+            student_class="12A1",
+            school="THPT Chuyên"
+        )
+        demo2 = UserModel(
+            id="stu_minh_khoi",
+            username="minhkhoi",
+            password_hash=hash_password("123"),
+            full_name="Trần Minh Khôi",
+            student_class="12A2",
+            school="THPT Chuyên"
+        )
+        db.add(demo1)
+        db.add(demo2)
+        db.commit()
+        users = [demo1, demo2]
+
+    return {"students": [u.to_dict() for u in users]}
 
 @app.get("/api/health")
 def health_check():
@@ -309,10 +404,11 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
         exam_title=exam.title
     )
 
-    # Lưu kết quả nộp bài vào DB
+    # Lưu kết quả nộp bài vào DB (gắn kết user_id nếu có)
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
     submission = SubmissionModel(
         id=sub_id,
+        user_id=req.user_id,
         exam_id=exam_id,
         candidate_name=req.candidate_name,
         started_at=datetime.utcnow(),
@@ -345,10 +441,19 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
     }
 
 @app.get("/api/submissions/{submission_id}")
-def get_submission(submission_id: str, db: Session = Depends(get_db)):
+def get_submission(submission_id: str, user_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Xem chi tiết kết quả bài thi.
+    BẢO MẬT: Nếu submission đã gắn với một user_id cụ thể, chỉ cho phép đúng user_id đó xem!
+    """
     sub = db.query(SubmissionModel).filter(SubmissionModel.id == submission_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Không tìm thấy kết quả làm bài.")
+    
+    # Kiểm tra phân quyền: nếu bài thi có chủ sở hữu và có yêu cầu kiểm tra user_id
+    if sub.user_id and user_id and sub.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền xem bài làm của học sinh khác!")
+
     return sub.to_dict()
 
 from fastapi.responses import HTMLResponse
@@ -612,9 +717,18 @@ def print_exam_paper(exam_id: str, db: Session = Depends(get_db)):
     return HTMLResponse(content=html_content)
 
 @app.get("/api/history")
-def get_submission_history(db: Session = Depends(get_db)):
-    """Lấy danh sách lịch sử nộp bài thi để vẽ biểu đồ tiến bộ năng lực"""
-    subs = db.query(SubmissionModel).order_by(SubmissionModel.submitted_at.desc()).limit(30).all()
+def get_submission_history(user_id: Optional[str] = None, candidate_name: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Lấy danh sách lịch sử nộp bài thi để vẽ biểu đồ tiến bộ năng lực.
+    CÔ LẬP DỮ LIỆU: Nếu truyền user_id hoặc candidate_name, chỉ trả về bài thi của chính học sinh đó!
+    """
+    query = db.query(SubmissionModel)
+    if user_id:
+        query = query.filter(SubmissionModel.user_id == user_id)
+    elif candidate_name:
+        query = query.filter(SubmissionModel.candidate_name == candidate_name)
+    
+    subs = query.order_by(SubmissionModel.submitted_at.desc()).limit(30).all()
     history = []
     for s in subs:
         exam = db.query(ExamModel).filter(ExamModel.id == s.exam_id).first()
@@ -622,6 +736,8 @@ def get_submission_history(db: Session = Depends(get_db)):
         max_s = exam.max_score if (exam and exam.max_score) else (10.0 if (exam and exam.exam_type == "spt") else 1200.0)
         history.append({
             "id": s.id,
+            "user_id": s.user_id,
+            "candidate_name": s.candidate_name,
             "exam_id": s.exam_id,
             "exam_title": exam_title,
             "submitted_at": s.submitted_at.strftime("%d/%m/%Y %H:%M") if s.submitted_at else "",

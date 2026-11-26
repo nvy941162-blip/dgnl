@@ -510,13 +510,17 @@ const examRunner = {
   async submitExam() {
     if (this.timerInterval) clearInterval(this.timerInterval);
     const timeSpentSeconds = Math.round((Date.now() - this.examStartTime) / 1000);
+    const currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+    const candidateName = currentUser ? `${currentUser.full_name} (${currentUser.student_class || 'HS'})` : "Thí sinh ĐGNL 2026";
+    const userId = currentUser ? currentUser.id : null;
 
     try {
       const res = await fetch(`/api/exams/${this.examData.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          candidate_name: "Thí sinh ĐGNL 2025",
+          candidate_name: candidateName,
+          user_id: userId,
           answers: this.userAnswers,
           time_spent_seconds: timeSpentSeconds
         })

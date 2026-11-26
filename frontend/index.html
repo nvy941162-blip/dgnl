@@ -150,6 +150,17 @@
       <button class="nav-btn" id="btn-tab-settings" onclick="app.showTab('settings')">
         ⚙️ Cài Đặt
       </button>
+
+      <!-- Student Account & Profile Indicator -->
+      <div id="nav-user-container" style="display: flex; align-items: center; margin-left: 0.5rem; gap: 0.5rem;">
+        <button class="btn btn-outline btn-sm" id="btn-open-auth-modal" onclick="authManager.openModal()" style="display: flex; align-items: center; gap: 0.35rem; background: #ffffff; border-color: var(--primary); color: var(--primary); font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 20px;">
+          <span>👤</span>
+          <span id="nav-user-label">Đăng Nhập Học Sinh</span>
+        </button>
+        <button class="btn btn-sm" id="btn-logout-user" onclick="authManager.logout()" style="display: none; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; border-radius: 20px; padding: 0.35rem 0.6rem;" title="Đăng xuất tài khoản">
+          🚪 Thoát
+        </button>
+      </div>
     </nav>
   </header>
 
@@ -675,10 +686,91 @@
     </div>
   </div>
 
+  <!-- MODAL ĐĂNG NHẬP / ĐĂNG KÝ HỌC SINH -->
+  <div id="auth-modal" class="img-zoom-modal" style="display: none; z-index: 10001; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.75);" onclick="if(event.target.id==='auth-modal') authManager.closeModal()">
+    <div style="background: #ffffff; border-radius: 0.85rem; width: 92%; max-width: 520px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);">
+      <!-- Modal Header -->
+      <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.5rem;">🎓</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.2rem; color: white;">Hồ Sơ & Tài Khoản Học Sinh</h3>
+            <small style="opacity: 0.9;">Bảo vệ dữ liệu bài thi - Chỉ học sinh đó mới xem được kết quả</small>
+          </div>
+        </div>
+        <button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4); padding: 0.25rem 0.6rem;" onclick="authManager.closeModal()">✖</button>
+      </div>
+
+      <!-- Quick Demo Switcher Bar (Tối ưu cho KHKT Giám Khảo) -->
+      <div style="padding: 0.75rem 1.25rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">⚡ Chọn nhanh học sinh (KHKT Demo):</span>
+        <div id="quick-demo-students" style="display: flex; gap: 0.35rem; flex-wrap: wrap;"></div>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div style="display: flex; border-bottom: 1px solid #e2e8f0;">
+        <button id="auth-tab-btn-login" class="btn" style="flex: 1; border-radius: 0; border: none; border-bottom: 3px solid var(--primary); background: #ffffff; color: var(--primary); font-weight: bold; padding: 0.75rem;" onclick="authManager.switchAuthTab('login')">
+          🔑 Đăng Nhập
+        </button>
+        <button id="auth-tab-btn-register" class="btn" style="flex: 1; border-radius: 0; border: none; border-bottom: 3px solid transparent; background: #f8fafc; color: #64748b; font-weight: bold; padding: 0.75rem;" onclick="authManager.switchAuthTab('register')">
+          📝 Đăng Ký Mới
+        </button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <!-- Form Đăng Nhập -->
+        <form id="form-login" onsubmit="authManager.handleLogin(event)">
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem;">Tên đăng nhập / Mã học sinh:</label>
+            <input type="text" id="login-username" class="form-control" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Ví dụ: ngocvy" required>
+          </div>
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem;">Mật khẩu:</label>
+            <input type="password" id="login-password" class="form-control" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Nhập mật khẩu (ví dụ: 123)" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-weight: bold;">
+            🚀 Đăng Nhập Vào Hệ Thống
+          </button>
+        </form>
+
+        <!-- Form Đăng Ký -->
+        <form id="form-register" style="display: none;" onsubmit="authManager.handleRegister(event)">
+          <div style="margin-bottom: 0.85rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;">Họ và tên học sinh:</label>
+            <input type="text" id="reg-fullname" class="form-control" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Ví dụ: Nguyễn Văn An" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div>
+              <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;">Lớp:</label>
+              <input type="text" id="reg-class" class="form-control" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="12A1" value="12A1">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;">Trường THPT:</label>
+              <input type="text" id="reg-school" class="form-control" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="THPT Chuyên" value="THPT Chuyên">
+            </div>
+          </div>
+          <div style="margin-bottom: 0.85rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;">Tên đăng nhập (viết liền không dấu):</label>
+            <input type="text" id="reg-username" class="form-control" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="vanan12" required>
+          </div>
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;">Mật khẩu:</label>
+            <input type="password" id="reg-password" class="form-control" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Đặt mật khẩu..." required>
+          </div>
+          <button type="submit" class="btn btn-success" style="width: 100%; padding: 0.75rem; font-weight: bold;">
+            ✨ Hoàn Tất Tạo Tài Khoản
+          </button>
+        </form>
+
+        <div id="auth-alert-box" style="display: none; margin-top: 1rem; padding: 0.65rem 0.85rem; border-radius: 6px; font-size: 0.85rem;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript Modules -->
-  <script src="/js/app.js?v=2026.7"></script>
-  <script src="/js/exam.js?v=2026.7"></script>
-  <script src="/js/generator.js?v=2026.7"></script>
-  <script src="/js/analytics.js?v=2026.7"></script>
+  <script src="/js/app.js?v=2026.8"></script>
+  <script src="/js/exam.js?v=2026.8"></script>
+  <script src="/js/generator.js?v=2026.8"></script>
+  <script src="/js/analytics.js?v=2026.8"></script>
 </body>
 </html>

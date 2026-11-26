@@ -668,9 +668,13 @@ const mistakesNotebook = {
     const modal = document.getElementById('mistakes-modal');
     if (modal) modal.style.display = 'none';
   },
+  getStorageKey() {
+    const user = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser.username : 'default';
+    return `dgnl_mistakes_notebook_${user}`;
+  },
   getItems() {
     try {
-      return JSON.parse(localStorage.getItem('dgnl_mistakes_notebook') || '[]');
+      return JSON.parse(localStorage.getItem(this.getStorageKey()) || '[]');
     } catch {
       return [];
     }
@@ -733,12 +737,12 @@ const mistakesNotebook = {
   },
   deleteItem(id) {
     let items = this.getItems().filter(m => m.id !== id);
-    localStorage.setItem('dgnl_mistakes_notebook', JSON.stringify(items));
+    localStorage.setItem(this.getStorageKey(), JSON.stringify(items));
     this.render();
   },
   clearAll() {
     if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ câu hỏi trong Sổ tay câu sai không?")) return;
-    localStorage.removeItem('dgnl_mistakes_notebook');
+    localStorage.removeItem(this.getStorageKey());
     this.render();
   },
   startDrill() {
@@ -766,6 +770,262 @@ const mistakesNotebook = {
   }
 };
 
+// Authentication & Student Profile Manager Module
+const authManager = {
+  currentUser: null,
+
+  init() {
+    // Tải thông tin học sinh đã lưu từ localStorage
+    const saved = localStorage.getItem('dgnl_current_student');
+    if (saved) {
+      try {
+        this.currentUser = JSON.parse(saved);
+      } catch (e) {
+        this.currentUser = null;
+      }
+    }
+
+    // Nếu chưa có tài khoản nào đăng nhập, mặc định nạp học sinh mẫu
+    if (!this.currentUser) {
+      this.currentUser = {
+        id: "stu_ngoc_vy",
+        username: "ngocvy",
+        full_name: "Nguyễn Ngọc Yến Vy",
+        student_class: "12A1",
+        school: "THPT Chuyên"
+      };
+      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+    }
+
+    this.updateUI();
+    this.fetchDemoStudents();
+  },
+
+  getCurrentUser() {
+    return this.currentUser;
+  },
+
+  updateUI() {
+    const label = document.getElementById('nav-user-label');
+    const logoutBtn = document.getElementById('btn-logout-user');
+    const authBtn = document.getElementById('btn-open-auth-modal');
+
+    if (this.currentUser) {
+      if (label) label.innerText = `${this.currentUser.full_name} (${this.currentUser.student_class || 'HS'})`;
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      if (authBtn) {
+        authBtn.style.background = '#e0f2fe';
+        authBtn.style.borderColor = '#0284c7';
+        authBtn.style.color = '#0369a1';
+        authBtn.title = `Tài khoản: ${this.currentUser.username} - Nhấn để đổi hoặc xem hồ sơ`;
+      }
+    } else {
+      if (label) label.innerText = 'Đăng Nhập Học Sinh';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+      if (authBtn) {
+        authBtn.style.background = '#ffffff';
+        authBtn.style.borderColor = 'var(--primary)';
+        authBtn.style.color = 'var(--primary)';
+        authBtn.title = 'Đăng nhập học sinh';
+      }
+    }
+
+    // Tự động làm mới lịch sử và sổ tay câu sai theo học sinh hiện tại
+    if (window.analyticsApp && typeof window.analyticsApp.loadHistory === 'function') {
+      window.analyticsApp.loadHistory();
+    }
+    if (window.mistakesNotebook && typeof window.mistakesNotebook.updateBadge === 'function') {
+      window.mistakesNotebook.updateBadge();
+    }
+  },
+
+  openModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      this.clearAlert();
+      this.fetchDemoStudents();
+    }
+  },
+
+  closeModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  switchAuthTab(tab) {
+    const loginForm = document.getElementById('form-login');
+    const regForm = document.getElementById('form-register');
+    const btnLogin = document.getElementById('auth-tab-btn-login');
+    const btnReg = document.getElementById('auth-tab-btn-register');
+    this.clearAlert();
+
+    if (tab === 'login') {
+      if (loginForm) loginForm.style.display = 'block';
+      if (regForm) regForm.style.display = 'none';
+      if (btnLogin) {
+        btnLogin.style.borderBottomColor = 'var(--primary)';
+        btnLogin.style.color = 'var(--primary)';
+        btnLogin.style.background = '#ffffff';
+      }
+      if (btnReg) {
+        btnReg.style.borderBottomColor = 'transparent';
+        btnReg.style.color = '#64748b';
+        btnReg.style.background = '#f8fafc';
+      }
+    } else {
+      if (loginForm) loginForm.style.display = 'none';
+      if (regForm) regForm.style.display = 'block';
+      if (btnReg) {
+        btnReg.style.borderBottomColor = 'var(--primary)';
+        btnReg.style.color = 'var(--primary)';
+        btnReg.style.background = '#ffffff';
+      }
+      if (btnLogin) {
+        btnLogin.style.borderBottomColor = 'transparent';
+        btnLogin.style.color = '#64748b';
+        btnLogin.style.background = '#f8fafc';
+      }
+    }
+  },
+
+  async handleLogin(event) {
+    event.preventDefault();
+    const uname = document.getElementById('login-username').value.trim();
+    const pass = document.getElementById('login-password').value.trim();
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uname, password: pass })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        this.showAlert(data.detail || "Đăng nhập thất bại!", "danger");
+        return;
+      }
+
+      this.currentUser = data.user;
+      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+      this.showAlert(`Xin chào ${this.currentUser.full_name}! Đăng nhập thành công.`, "success");
+      this.updateUI();
+      setTimeout(() => {
+        this.closeModal();
+      }, 700);
+    } catch (err) {
+      this.showAlert(`Lỗi kết nối máy chủ: ${err.message}`, "danger");
+    }
+  },
+
+  async handleRegister(event) {
+    event.preventDefault();
+    const fullname = document.getElementById('reg-fullname').value.trim();
+    const sclass = document.getElementById('reg-class').value.trim();
+    const school = document.getElementById('reg-school').value.trim();
+    const uname = document.getElementById('reg-username').value.trim();
+    const pass = document.getElementById('reg-password').value.trim();
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: fullname,
+          student_class: sclass,
+          school: school,
+          username: uname,
+          password: pass
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        this.showAlert(data.detail || "Đăng ký thất bại!", "danger");
+        return;
+      }
+
+      this.currentUser = data.user;
+      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+      this.showAlert(`Đã tạo tài khoản cho ${this.currentUser.full_name}!`, "success");
+      this.updateUI();
+      setTimeout(() => {
+        this.closeModal();
+      }, 700);
+    } catch (err) {
+      this.showAlert(`Lỗi kết nối máy chủ: ${err.message}`, "danger");
+    }
+  },
+
+  async fetchDemoStudents() {
+    try {
+      const res = await fetch('/api/auth/students');
+      const data = await res.json();
+      const container = document.getElementById('quick-demo-students');
+      if (!container || !data.students) return;
+
+      container.innerHTML = data.students.map(s => {
+        const isSelected = this.currentUser && this.currentUser.username === s.username;
+        return `
+          <button type="button" class="btn btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; ${isSelected ? 'background: #2563eb; color: white;' : 'background: #e2e8f0; color: #1e293b;'}" onclick="authManager.quickSwitch('${s.username}', '${s.full_name.replace(/'/g, "\\'")}', '${s.id}', '${s.student_class}')">
+            ${s.full_name.split(' ').pop()} (${s.student_class})
+          </button>
+        `;
+      }).join('');
+    } catch (e) {
+      console.warn("Could not load demo students", e);
+    }
+  },
+
+  quickSwitch(username, fullName, id, studentClass) {
+    this.currentUser = {
+      id: id,
+      username: username,
+      full_name: fullName,
+      student_class: studentClass || "12"
+    };
+    localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+    this.showAlert(`Đã chuyển sang tài khoản: ${fullName}`, "success");
+    this.updateUI();
+    setTimeout(() => {
+      this.closeModal();
+    }, 500);
+  },
+
+  logout() {
+    if (confirm(`Bạn có chắc chắn muốn đăng xuất khỏi tài khoản ${this.currentUser?.full_name || ''}?`)) {
+      this.currentUser = null;
+      localStorage.removeItem('dgnl_current_student');
+      this.updateUI();
+      this.openModal();
+    }
+  },
+
+  showAlert(msg, type) {
+    const box = document.getElementById('auth-alert-box');
+    if (!box) return;
+    box.style.display = 'block';
+    box.innerText = msg;
+    if (type === 'success') {
+      box.style.background = '#ecfdf5';
+      box.style.color = '#065f46';
+      box.style.border = '1px solid #a7f3d0';
+    } else {
+      box.style.background = '#fef2f2';
+      box.style.color = '#991b1b';
+      box.style.border = '1px solid #fecaca';
+    }
+  },
+
+  clearAlert() {
+    const box = document.getElementById('auth-alert-box');
+    if (box) {
+      box.style.display = 'none';
+      box.innerText = '';
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+  authManager.init();
   app.init();
 });
