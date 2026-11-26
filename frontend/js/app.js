@@ -780,11 +780,15 @@ const authManager = {
   currentUser: null,
 
   init() {
-    // Tải thông tin người dùng đã lưu từ localStorage
-    const saved = localStorage.getItem('dgnl_current_student');
-    if (saved) {
+    // KHÔNG TỰ ĐỘNG ĐĂNG NHẬP: Bắt buộc người dùng phải chọn tài khoản hoặc đăng nhập mỗi phiên
+    sessionStorage.removeItem('dgnl_current_student');
+    this.currentUser = null;
+
+    // Kiểm tra xem trong phiên làm việc hiện tại (sessionStorage) có đăng nhập chưa
+    const sessionSaved = sessionStorage.getItem('dgnl_current_session_user');
+    if (sessionSaved) {
       try {
-        this.currentUser = JSON.parse(saved);
+        this.currentUser = JSON.parse(sessionSaved);
       } catch (e) {
         this.currentUser = null;
       }
@@ -793,11 +797,9 @@ const authManager = {
     this.updateUI();
     this.fetchDemoStudents();
 
-    // NẾU CHƯA ĐĂNG NHẬP: BẬT NGAY FORM ĐĂNG NHẬP LÊN TRÊN MÀN HÌNH (LOGIN WALL)
+    // MỖI KHI MỞ TRANG WEB: BẮT BUỘC BẬT FORM ĐĂNG NHẬP NGAY LẬP TỨC
     if (!this.currentUser) {
-      setTimeout(() => {
-        this.openModal(true); // force login
-      }, 200);
+      this.openModal(true);
     }
   },
 
@@ -945,7 +947,7 @@ const authManager = {
       }
 
       this.currentUser = data.user;
-      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+      sessionStorage.setItem('dgnl_current_session_user', JSON.stringify(this.currentUser));
       this.showAlert(`Xin chào ${this.currentUser.full_name}! Đăng nhập thành công.`, "success");
       this.updateUI();
 
@@ -992,7 +994,7 @@ const authManager = {
       }
 
       this.currentUser = data.user;
-      localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+      sessionStorage.setItem('dgnl_current_session_user', JSON.stringify(this.currentUser));
       this.showAlert(`Đã tạo tài khoản cho ${this.currentUser.full_name}!`, "success");
       this.updateUI();
       setTimeout(() => {
@@ -1043,7 +1045,7 @@ const authManager = {
       student_class: studentClass || "12",
       role: role
     };
-    localStorage.setItem('dgnl_current_student', JSON.stringify(this.currentUser));
+    sessionStorage.setItem('dgnl_current_session_user', JSON.stringify(this.currentUser));
     this.showAlert(`Đã chọn tài khoản: ${fullName} (${role === 'admin' ? 'Quyền Admin' : 'Học sinh'})`, "success");
     this.updateUI();
 
@@ -1063,6 +1065,7 @@ const authManager = {
   logout() {
     if (confirm(`Bạn có chắc chắn muốn đăng xuất khỏi tài khoản ${this.currentUser?.full_name || ''}?`)) {
       this.currentUser = null;
+      sessionStorage.removeItem('dgnl_current_session_user');
       localStorage.removeItem('dgnl_current_student');
       this.updateUI();
       app.showTab('dashboard');
@@ -1224,12 +1227,45 @@ const adminManager = {
             </td>
             <td style="padding: 0.75rem 0.5rem; text-align: center; color: #64748b;">${Math.round(r.time_spent_seconds / 60)} phút</td>
             <td style="padding: 0.75rem 0.5rem; font-size: 0.8rem; color: #64748b;">${r.submitted_at}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">
+              <button class="btn btn-outline btn-sm" onclick="adminManager.deleteSubmission('${r.id}', '${r.candidate_name}')" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; color: #dc2626; border-color: #fca5a5;" title="Xóa kết quả bài thi này">
+                🗑️ Xóa Bài
+              </button>
+            </td>
           </tr>
         `;
       }).join('');
 
     } catch (err) {
       console.warn("Lỗi tải Leaderboard: " + err.message);
+    }
+  },
+
+  async deleteSubmission(subId, candidateName) {
+    if (!confirm(`Bạn có chắc chắn muốn XÓA bài thi của thí sinh '${candidateName}' không?`)) return;
+    try {
+      const res = await fetch(`/api/admin/submissions/${subId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Không thể xóa bài làm.");
+      alert(data.message);
+      this.loadLeaderboard();
+      this.loadUsers();
+    } catch (err) {
+      alert("Lỗi xóa bài làm: " + err.message);
+    }
+  },
+
+  async deleteAllSubmissions() {
+    if (!confirm("⚠️ CẢNH BÁO QUAN TRỌNG:\n\nBạn có chắc chắn muốn XÓA TOÀN BỘ bài làm của tất cả thí sinh để làm mới kỳ thi không?\nThao tác này không thể hoàn tác!")) return;
+    try {
+      const res = await fetch('/api/admin/submissions', { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Không thể xóa bài làm.");
+      alert(data.message);
+      this.loadLeaderboard();
+      this.loadUsers();
+    } catch (err) {
+      alert("Lỗi xóa bài làm: " + err.message);
     }
   },
 

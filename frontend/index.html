@@ -676,12 +676,15 @@
             <h3 style="color: var(--primary); margin: 0 0 0.25rem 0;">🏆 Bảng Vàng Xếp Hạng Điểm Thi (Từ Cao Xuống Thấp)</h3>
             <small style="color: #64748b;">Toàn bộ bài thi của học sinh được sắp xếp theo tỷ lệ phần trăm và điểm số thực tế để ban quản lý giám sát</small>
           </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <button class="btn btn-outline btn-sm" onclick="adminManager.copyLeaderboard()" style="font-size: 0.85rem;" title="Sao chép toàn bộ bảng xếp hạng để dán sang Excel, Word">
               📋 Sao Chép Bảng Điểm
             </button>
             <button class="btn btn-outline btn-sm" onclick="adminManager.exportLeaderboardCSV()" style="font-size: 0.85rem;" title="Tải file Excel .CSV có dấu tiếng Việt">
               📥 Xuất File Excel
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="adminManager.deleteAllSubmissions()" style="font-size: 0.85rem; color: #dc2626; border-color: #fca5a5;" title="Xóa toàn bộ bài thi để bắt đầu kỳ thi mới">
+              🗑️ Xóa Tất Cả Bài Thi
             </button>
           </div>
         </div>
@@ -698,11 +701,12 @@
                 <th style="padding: 0.75rem 0.5rem; text-align: center;">Tỷ Lệ (%)</th>
                 <th style="padding: 0.75rem 0.5rem; text-align: center;">Thời Gian Làm</th>
                 <th style="padding: 0.75rem 0.5rem;">Ngày Nộp Bài</th>
+                <th style="padding: 0.75rem 0.5rem; text-align: center;">Thao Tác</th>
               </tr>
             </thead>
             <tbody id="admin-leaderboard-table-body">
               <tr>
-                <td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải bảng xếp hạng...</td>
+                <td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải bảng xếp hạng...</td>
               </tr>
             </tbody>
           </table>
@@ -856,9 +860,9 @@
   </div>
 
   <!-- JavaScript Modules -->
-  <script src="/js/app.js?v=2026.8"></script>
-  <script src="/js/exam.js?v=2026.8"></script>
-  <script src="/js/generator.js?v=2026.8"></script>
-  <script src="/js/analytics.js?v=2026.8"></script>
+  <script src="/js/app.js?v=2026.9"></script>
+  <script src="/js/exam.js?v=2026.9"></script>
+  <script src="/js/generator.js?v=2026.9"></script>
+  <script src="/js/analytics.js?v=2026.9"></script>
 </body>
 </html>

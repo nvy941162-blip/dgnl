@@ -339,6 +339,26 @@ def admin_leaderboard(exam_id: Optional[str] = None, db: Session = Depends(get_d
         "total_submissions": len(records)
     }
 
+@app.delete("/api/admin/submissions/{submission_id}")
+def admin_delete_single_submission(submission_id: str, db: Session = Depends(get_db)):
+    """Admin xóa một bài làm cụ thể của thí sinh"""
+    sub = db.query(SubmissionModel).filter(SubmissionModel.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài làm cần xóa.")
+    
+    candidate = sub.candidate_name
+    db.delete(sub)
+    db.commit()
+    return {"status": "success", "message": f"Đã xóa bài làm của thí sinh '{candidate}' thành công!"}
+
+@app.delete("/api/admin/submissions")
+def admin_delete_all_submissions(db: Session = Depends(get_db)):
+    """Admin xóa toàn bộ bài làm của tất cả thí sinh để làm mới kỳ thi"""
+    count = db.query(SubmissionModel).count()
+    db.query(SubmissionModel).delete()
+    db.commit()
+    return {"status": "success", "message": f"Đã xóa toàn bộ {count} bài làm của thí sinh thành công!"}
+
 @app.get("/api/health")
 def health_check():
     return {
