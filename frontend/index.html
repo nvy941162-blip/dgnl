@@ -635,9 +635,14 @@
             <h2 style="color: white; margin: 0 0 0.5rem 0;">🛡️ Bảng Quản Trị Hệ Thống Khảo Thí (Admin Portal)</h2>
             <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">Quản lý toàn bộ danh sách tài khoản học sinh, theo dõi bài thi, kết quả khảo thí và bảo mật hệ thống.</p>
           </div>
-          <button class="btn btn-warning" onclick="adminManager.loadUsers()" style="font-weight: 600;">
-            🔄 Làm Mới Dữ Liệu
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <a href="/api/docs/codebase-pdf" target="_blank" class="btn btn-primary" style="background: #38bdf8; color: #0f172a; font-weight: bold; text-decoration: none;" title="Xem và in tài liệu giải thích chi tiết mã nguồn & Multi-Agent gửi Ban Giám Khảo">
+              📄 Báo Cáo Mã Nguồn & Multi-Agent (PDF)
+            </a>
+            <button class="btn btn-warning" onclick="adminManager.loadUsers()" style="font-weight: 600;">
+              🔄 Làm Mới Dữ Liệu
+            </button>
+          </div>
         </div>
       </div>
 
