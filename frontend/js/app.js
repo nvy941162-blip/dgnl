@@ -807,7 +807,18 @@ const authManager = {
   },
 
   isAdmin() {
-    return this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.username === 'admin');
+    if (!this.currentUser) {
+      try {
+        const raw = sessionStorage.getItem('dgnl_current_session_user') || localStorage.getItem('dgnl_current_student');
+        if (raw) this.currentUser = JSON.parse(raw);
+      } catch (e) {}
+    }
+    return Boolean(this.currentUser && (
+      this.currentUser.role === 'admin' ||
+      this.currentUser.username === 'admin' ||
+      (this.currentUser.full_name && this.currentUser.full_name.toLowerCase().includes('admin')) ||
+      (this.currentUser.student_class && this.currentUser.student_class.toLowerCase().includes('quản trị'))
+    ));
   },
 
   updateUI() {
@@ -1324,6 +1335,8 @@ const adminManager = {
     document.body.removeChild(link);
   }
 };
+
+window.authManager = authManager;
 
 document.addEventListener('DOMContentLoaded', () => {
   authManager.init();

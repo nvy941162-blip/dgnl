@@ -14,7 +14,7 @@ const generatorStudio = {
     if (this.isGenerating120) return;
 
     // KIỂM TRA PHÂN QUYỀN: CHỈ ADMIN MỚI ĐƯỢC TẠO ĐỀ MỚI
-    let currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : null;
+    let currentUser = (window.authManager && window.authManager.currentUser) ? window.authManager.currentUser : (typeof authManager !== 'undefined' ? authManager.currentUser : null);
     if (!currentUser) {
       try {
         const raw = sessionStorage.getItem('dgnl_current_session_user') || localStorage.getItem('dgnl_current_student');
@@ -22,11 +22,18 @@ const generatorStudio = {
       } catch (e) {}
     }
 
-    const isAdmin = currentUser && (
-      currentUser.role === 'admin' ||
-      currentUser.username === 'admin' ||
-      (currentUser.full_name && currentUser.full_name.includes('Admin')) ||
-      (currentUser.student_class && currentUser.student_class.includes('Quản Trị'))
+    const navLabel = (document.getElementById('nav-user-label')?.innerText || '').toLowerCase();
+    const isAdmin = Boolean(
+      (typeof authManager !== 'undefined' && authManager.isAdmin && authManager.isAdmin()) ||
+      (window.authManager && window.authManager.isAdmin && window.authManager.isAdmin()) ||
+      (currentUser && (
+        currentUser.role === 'admin' ||
+        currentUser.username === 'admin' ||
+        (currentUser.full_name && currentUser.full_name.toLowerCase().includes('admin')) ||
+        (currentUser.student_class && currentUser.student_class.toLowerCase().includes('quản trị'))
+      )) ||
+      navLabel.includes('admin') ||
+      navLabel.includes('quản trị')
     );
 
     if (!isAdmin) {
