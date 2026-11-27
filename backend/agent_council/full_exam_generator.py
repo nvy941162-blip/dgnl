@@ -12,7 +12,7 @@ from backend.exam_engine.grader import calculate_question_weights
 from backend.agent_council.gemini_rotator import gemini_rotator
 from backend.agent_council.language_agent import LanguageAgent
 from backend.agent_council.logic_data_agent import LogicDataAgent
-from backend.agent_council.critic_agent import CriticAgent
+from backend.agent_council.critic_agent import CriticAgent, normalize_question_item
 from backend.agent_council.hyde_rag import HyDERetriever
 from backend.agent_council.graph import run_agent_council_pipeline
 from backend.agent_council.domain_generators import domain_generators
@@ -307,12 +307,19 @@ class FullExamGenerator:
                 )
 
                 for item in fresh_items:
-                    passed, refined_q, report = self.critic_agent.evaluate_and_refine(item)
+                    norm_item = normalize_question_item(item, q_type)
+                    passed, refined_q, report = self.critic_agent.evaluate_and_refine(norm_item)
+                    refined_q = normalize_question_item(refined_q, q_type)
                     refined_q["question_number"] = len(questions) + 1
                     refined_q["domain"] = subject
                     refined_q["section_id"] = sec_id
-                    if "question_type" not in refined_q:
-                        refined_q["question_type"] = q_type
+                    refined_q["question_type"] = q_type
+                    if q_type == "true_false":
+                        refined_q["points"] = 1.0
+                    elif q_type == "essay":
+                        refined_q["points"] = 1.0
+                    else:
+                        refined_q["points"] = 0.25
 
                     questions.append(refined_q)
                     task["generated_count"] = len(questions)
@@ -397,22 +404,23 @@ Hãy biên soạn đúng {b_count} câu hỏi MỚI TOÀN DIỆN, CHẤT LƯỢN
 Đặc tả dạng câu hỏi:
 - Section ID: {sec_id}
 - Dạng câu: {q_type}
-{'Yêu cầu: Mỗi câu hỏi trắc nghiệm có 4 phương án A, B, C, D và đúng 1 đáp án đúng (A/B/C/D).' if q_type == 'multiple_choice' else ''}
-{'Yêu cầu: Câu hỏi Đúng/Sai gồm ngữ cảnh và 4 mệnh đề nhỏ (a, b, c, d). tf_statements: [{"id": "a", "text": "...", "correct": true}, ...], correct_answer: {"a": true, "b": false, "c": true, "d": false}.' if q_type == 'true_false' else ''}
+{'Yêu cầu BẮT BUỘC: Câu trắc nghiệm PHẢI có object "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}} và "correct_answer": "A" (hoặc B/C/D).' if q_type == 'multiple_choice' else ''}
+{'Yêu cầu BẮT BUỘC: Câu Đúng/Sai PHẢI có object "tf_statements": {{"a": "phát biểu 1", "b": "phát biểu 2", "c": "phát biểu 3", "d": "phát biểu 4"}} và object "correct_answer": {{"a": "Đ", "b": "S", "c": "Đ", "d": "S"}}.' if q_type == 'true_false' else ''}
 {'Yêu cầu: Câu hỏi điền đáp số/trả lời ngắn. Thí sinh tự điền số hoặc từ ngắn gọn vào correct_answer.' if q_type == 'short_answer' else ''}
 {'Yêu cầu: Câu tự luận kèm rubric thang điểm chi tiết (ai_rubric) và hướng dẫn chấm.' if q_type == 'essay' else ''}
 
 Dùng KaTeX LaTeX ($...$) cho mọi công thức Toán/Hóa/Vật lý.
-Trả về JSON ARRAY gồm đúng {b_count} phần tử:
+Trả về JSON ARRAY gồm đúng {b_count} phần tử.
+CẤU TRÚC MẪU BẮT BUỘC:
 [
   {{
     "question_type": "{q_type}",
-    "prompt": "...",
+    "prompt": "Nội dung câu hỏi...",
     "passage": null,
-    "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
-    "tf_statements": [],
-    "correct_answer": "...",
-    "explanation": "..."
+    "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
+    "tf_statements": {{"a": "...", "b": "...", "c": "...", "d": "..."}},
+    "correct_answer": "A",
+    "explanation": "Lời giải thích cặn kẽ..."
   }}
 ]
 CHỈ TRẢ VỀ JSON ARRAY HỢP LỆ.
@@ -431,35 +439,38 @@ CHỈ TRẢ VỀ JSON ARRAY HỢP LỆ.
                     if isinstance(parsed, list):
                         for p in parsed[:b_count]:
                             if isinstance(p, dict) and p.get("prompt"):
-                                all_generated.append(p)
+                                all_generated.append(normalize_question_item(p, q_type))
             except Exception as e:
                 print(f"[FullExamGenerator] Lỗi gọi Gemini batch: {e}")
 
-        # Nếu thiếu câu hỏi do API ngắt hoặc chưa đủ, tự động bổ sung bằng Dynamic Mutation
+        # Nếu thiếu câu hỏi do API ngắt hoặc chưa đủ, tự động sinh mới 100% bằng SPT Procedural Engine
+        from backend.agent_council.spt_generators import generate_fresh_spt_question
         while len(all_generated) < count:
-            idx = len(all_generated)
-            tmpl = dict(base_templates[idx % len(base_templates)]) if base_templates else {}
-            all_generated.append(self._mutate_question_template(tmpl, topic_theme, idx))
+            idx = len(all_generated) + 1
+            fresh_q = generate_fresh_spt_question(subject, sec_id, q_type, topic_theme, idx)
+            all_generated.append(normalize_question_item(fresh_q, q_type))
 
         return all_generated[:count]
 
     def _mutate_question_template(self, tmpl: Dict[str, Any], topic_theme: str, idx: int) -> Dict[str, Any]:
-        """Tạo biến thể mới từ mẫu câu hỏi: thay đổi hệ số, số liệu và câu chữ để đề mới luôn độc nhất"""
+        """Tạo biến thể mới từ mẫu câu hỏi an toàn, bảo đảm công thức toán học KaTeX giữ nguyên tính đúng đắn"""
         q = dict(tmpl)
         prompt = q.get("prompt", "")
 
-        def replace_num(match):
-            val = int(match.group(0))
-            delta = random.choice([-3, -2, -1, 1, 2, 3, 4, 5])
-            return str(max(1, val + delta))
-
-        mutated_prompt = re.sub(r'\b[1-9][0-9]?\b', replace_num, prompt)
-        if mutated_prompt == prompt:
-            mutated_prompt += f" (Biến thể số {idx+1} theo chuyên đề: {topic_theme})"
+        # Không thay thế số ngẫu nhiên bên trong công thức LaTeX ($...$) để tránh sinh ra x^1 hoặc sai bản chất toán học
+        if "$" in prompt:
+            # Chỉ thêm ngữ cảnh chủ đề vào prompt mà không làm biến dạng công thức
+            mutated_prompt = prompt
+        else:
+            def replace_num(match):
+                val = int(match.group(0))
+                delta = random.choice([1, 2, 3])
+                return str(val + delta)
+            mutated_prompt = re.sub(r'\b[1-9][0-9]?\b', replace_num, prompt)
 
         q["prompt"] = mutated_prompt
         if q.get("explanation"):
-            q["explanation"] = f"Phân tích chuyên đề '{topic_theme}': {q['explanation']}"
+            q["explanation"] = f"{q['explanation']}"
         return q
 
     def _run_generation_worker(self, task_id: str, exam_title: str, topic_theme: str):

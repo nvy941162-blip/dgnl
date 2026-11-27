@@ -518,7 +518,7 @@ Trả về định dạng JSON array đúng 10 câu:
         return valid_items[:10]
 
     # =========================================================================
-    # FALLBACK GENERATORS (TẠO CÂU HỎI THAY THẾ BIẾN ĐỔI NGẪU NHIÊN KHI CẦN)
+    # FALLBACK GENERATORS (TẠO CÂU HỎI THAY THẾ ĐA DẠNG 100% KHÔNG TRÙNG LẶP)
     # =========================================================================
     def _generate_fallback_vietnamese(self, idx: int, topic: str) -> Dict[str, Any]:
         templates = [
@@ -529,7 +529,7 @@ Trả về định dạng JSON array đúng 10 câu:
                 "explanation": "'Nếm mật nằm gai' biểu đạt ý chí kiên định vượt qua gian khổ để phục thù hoặc giành thắng lợi lớn."
             },
             {
-                "prompt": "Trong các câu sau, câu nào mắc lỗi sai kết hợp từ ngữ (lỗi logic)?",
+                "prompt": "Trong các câu sau, câu nào mắc lỗi sai kết hợp từ ngữ (lỗi logic ngữ nghĩa)?",
                 "options": {
                     "A": "Chúng ta cần phát huy tối đa các điểm yếu của bản thân.",
                     "B": "Học sinh tích cực tham gia các phong trào tình nguyện hè.",
@@ -538,6 +538,29 @@ Trả về định dạng JSON array đúng 10 câu:
                 },
                 "correct_answer": "A",
                 "explanation": "Từ 'phát huy' chỉ đi liền với mặt tốt, ưu điểm. Với 'điểm yếu' phải dùng từ 'khắc phục' hoặc 'sửa chữa'."
+            },
+            {
+                "prompt": "Biện pháp tu từ nào được sử dụng chủ đạo trong câu thơ: 'Bàn tay ta làm nên tất cả / Có sức người sỏi đá cũng thành cơm' (Hoàng Trung Thông)?",
+                "options": {"A": "Hoán dụ và thậm xưng (nói quá)", "B": "Ẩn dụ và so sánh", "C": "Điệp từ và chơi chữ", "D": "Nghịch ngữ và nhân hóa"},
+                "correct_answer": "A",
+                "explanation": "'Bàn tay' là hoán dụ lấy bộ phận chỉ toàn thể (sức lao động của con người); 'sỏi đá cũng thành cơm' là phép nói quá khẳng định sức mạnh cải tạo tự nhiên to lớn của lao động."
+            },
+            {
+                "prompt": "Từ nào sau đây là từ Hán-Việt có nghĩa là 'người có học vấn sâu rộng và đức hạnh cao quý'?",
+                "options": {"A": "Quân tử", "B": "Thư sinh", "C": "Lực điền", "D": "Bần nông"},
+                "correct_answer": "A",
+                "explanation": "'Quân tử' (君子) theo quan niệm Nho giáo là người có học thức, nhân cách và phẩm hạnh đạo đức mẫu mực."
+            },
+            {
+                "prompt": "Xác định câu văn mắc lỗi thiếu thành phần chủ ngữ trong các câu sau:",
+                "options": {
+                    "A": "Qua tác phẩm 'Vợ chồng A Phủ' đã cho ta thấy sức sống tiềm tàng của người dân Tây Bắc.",
+                    "B": "Tác phẩm 'Vợ chồng A Phủ' đã cho ta thấy sức sống tiềm tàng của người dân Tây Bắc.",
+                    "C": "Đọc tác phẩm 'Vợ chồng A Phủ', ta thấy được sức sống tiềm tàng của người dân Tây Bắc.",
+                    "D": "Qua tác phẩm 'Vợ chồng A Phủ', nhà văn Tô Hoài đã làm nổi bật sức sống của người dân Tây Bắc."
+                },
+                "correct_answer": "A",
+                "explanation": "Câu A biến cụm chủ ngữ thành trạng ngữ 'Qua tác phẩm...', khiến câu bị thiếu chủ ngữ ngữ pháp."
             }
         ]
         chosen = templates[idx % len(templates)]
@@ -550,106 +573,56 @@ Trả về định dạng JSON array đúng 10 câu:
         }
 
     def _generate_fallback_english(self, idx: int, topic: str) -> Dict[str, Any]:
-        templates = [
-            {
-                "prompt": "Hardly _______ the laboratory when the fire alarm started ringing loudly.",
-                "options": {"A": "had he entered", "B": "did he enter", "C": "he had entered", "D": "he was entering"},
-                "correct_answer": "A",
-                "explanation": "Structure of inversion with 'Hardly': Hardly + had + S + V3/ed + when + S + V2/ed."
-            },
-            {
-                "prompt": "The government decided to _______ stricter regulations on carbon emissions to combat climate change.",
-                "options": {"A": "impose", "B": "compel", "C": "oblige", "D": "enforce"},
-                "correct_answer": "A",
-                "explanation": "Collocation: 'impose regulations/taxes on something' means to introduce a new law or tax officially."
-            }
-        ]
-        chosen = templates[idx % len(templates)]
+        from backend.agent_council.spt_generators import _generate_fresh_english
+        q = _generate_fresh_english("section_1_language", "multiple_choice", idx)
         return {
             "domain": "english",
             "section_id": "section_1_language",
-            "difficulty": "medium",
             "passage": None,
-            **chosen
+            **q
         }
 
     def _generate_fallback_math(self, idx: int) -> Dict[str, Any]:
-        a = random.randint(2, 5)
-        b = random.randint(1, 6)
+        from backend.agent_council.spt_generators import _generate_fresh_math
+        q = _generate_fresh_math("section_2_logic_data", "multiple_choice", idx)
         return {
             "domain": "math",
             "section_id": "section_2_logic_data",
-            "difficulty": "medium",
             "passage": None,
-            "prompt": f"Cho hàm số y = x^3 - 3x + {b}. Giá trị cực tiểu của hàm số đã cho bằng bao nhiêu?",
-            "options": {"A": f"{b - 2}", "B": f"{b + 2}", "C": f"{b}", "D": f"-{b}"},
-            "correct_answer": "A",
-            "explanation": f"y' = 3x^2 - 3 = 0 <=> x = 1 hoặc x = -1. Tại x = 1, y đạt cực tiểu với y(1) = 1 - 3 + {b} = {b - 2}."
+            **q
         }
 
     def _generate_fallback_science(self, domain: str, idx: int) -> Dict[str, Any]:
+        from backend.agent_council.spt_generators import (
+            _generate_fresh_physics, _generate_fresh_chemistry, _generate_fresh_biology
+        )
         if domain == "chemistry":
-            return {
-                "domain": "chemistry",
-                "section_id": "section_3_problem_solving",
-                "difficulty": "medium",
-                "passage": None,
-                "prompt": "Chất nào sau đây tác dụng với dung dịch AgNO3 trong NH3 đun nóng tạo ra kết tủa Ag sáng bóng?",
-                "options": {"A": "Glucozơ", "B": "Saccarozơ", "C": "Axit axetic", "D": "Etyl axetat"},
-                "correct_answer": "A",
-                "explanation": "Glucozơ có nhóm chức anđehit (-CHO) nên có khả năng tham gia phản ứng tráng bạc với thuốc thử Tollens."
-            }
+            q = _generate_fresh_chemistry("section_3_problem_solving", "multiple_choice", idx)
         elif domain == "physics":
-            return {
-                "domain": "physics",
-                "section_id": "section_3_problem_solving",
-                "difficulty": "medium",
-                "passage": None,
-                "prompt": "Một con lắc lò xo gồm vật nặng m và lò xo có độ cứng k. Chu kỳ dao động điều hòa của con lắc là:",
-                "options": {"A": "T = 2π√(m/k)", "B": "T = 2π√(k/m)", "C": "T = 1/(2π)√(m/k)", "D": "T = 2π√(g/l)"},
-                "correct_answer": "A",
-                "explanation": "Công thức tính chu kỳ con lắc lò xo dao động điều hòa là T = 2π√(m/k)."
-            }
-        else: # biology
-            return {
-                "domain": "biology",
-                "section_id": "section_3_problem_solving",
-                "difficulty": "medium",
-                "passage": None,
-                "prompt": "Loại axit nuclêic nào sau đây đóng vai trò vận chuyển axit amin đến ribôxôm trong quá trình dịch mã?",
-                "options": {"A": "tARN", "B": "mARN", "C": "rARN", "D": "ADN"},
-                "correct_answer": "A",
-                "explanation": "tARN (ARN vận chuyển) mang bộ ba đối mã (anticodon) đặc hiệu và đầu 3' gắn với axit amin tương ứng."
-            }
+            q = _generate_fresh_physics("section_3_problem_solving", "multiple_choice", idx)
+        else:
+            q = _generate_fresh_biology("section_3_problem_solving", "multiple_choice", idx)
+        return {
+            "domain": domain,
+            "section_id": "section_3_problem_solving",
+            "passage": None,
+            **q
+        }
 
     def _generate_fallback_social(self, domain: str, idx: int) -> Dict[str, Any]:
+        from backend.agent_council.spt_generators import (
+            _generate_fresh_history, _generate_fresh_geography
+        )
         if domain == "history":
-            return {
-                "domain": "history",
-                "section_id": "section_3_problem_solving",
-                "difficulty": "medium",
-                "passage": None,
-                "prompt": "Thắng lợi quân sự nào của quân dân Việt Nam đã buộc đế quốc Mỹ phải ký kết Hiệp định Paris (1973)?",
-                "options": {
-                    "A": "Trận 'Điện Biên Phủ trên không' cuối năm 1972",
-                    "B": "Chiến dịch Tây Nguyên năm 1975",
-                    "C": "Chiến thắng Đường 9 - Khe Sanh năm 1968",
-                    "D": "Tổng tiến công và nổi dậy Tết Mậu Thân 1968"
-                },
-                "correct_answer": "A",
-                "explanation": "Chiến thắng 'Điện Biên Phủ trên không' (12 ngày đêm cuối tháng 12/1972) đập tan cuộc tập kích B-52, buộc Mỹ ký Hiệp định Paris ngày 27/1/1973."
-            }
-        else: # geography
-            return {
-                "domain": "geography",
-                "section_id": "section_3_problem_solving",
-                "difficulty": "medium",
-                "passage": None,
-                "prompt": "Vùng kinh tế nào ở nước ta hiện nay có mức độ đô thị hóa cao nhất và cơ cấu công nghiệp phát triển nhất?",
-                "options": {"A": "Đông Nam Bộ", "B": "Đồng bằng sông Hồng", "C": "Duyên hải Nam Trung Bộ", "D": "Bắc Trung Bộ"},
-                "correct_answer": "A",
-                "explanation": "Đông Nam Bộ là vùng kinh tế năng động nhất, tỷ lệ dân đô thị cao nhất và dẫn đầu cả nước về giá trị sản xuất công nghiệp."
-            }
+            q = _generate_fresh_history("section_3_problem_solving", "multiple_choice", idx)
+        else:
+            q = _generate_fresh_geography("section_3_problem_solving", "multiple_choice", idx)
+        return {
+            "domain": domain,
+            "section_id": "section_3_problem_solving",
+            "passage": None,
+            **q
+        }
 
 # Singleton instance
 domain_generators = DomainGenerators()

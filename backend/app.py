@@ -526,7 +526,10 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
     )
     
     # Vẽ Biểu đồ Mạng nhện Radar Chart (Matplotlib)
-    radar_image_base64 = generate_radar_chart_base64(grade_report["domain_stats"])
+    radar_image_base64 = generate_radar_chart_base64(
+        grade_report["domain_stats"], 
+        is_spt=grade_report.get("is_spt", False)
+    )
 
     # Sinh lời khuyên ôn tập cá nhân hóa từ Chuyên gia AI
     ai_advice = generate_personalized_advice(
@@ -977,45 +980,12 @@ def generate_full_exam(req: GenerateFullExamRequest, db: Session = Depends(get_d
     mode = (req.mode or "vact_full").strip()
     title_raw = (req.title or "").strip()
     theme_raw = (req.theme or "").strip()
-    title_lower = title_raw.lower()
-    theme_lower = theme_raw.lower()
-
-    # Nhận diện thông minh nếu mode chưa được gửi chuẩn hoặc bị mặc định vact_full
-    if mode == "vact_full":
-        # Toán học
-        if any(k in title_lower or k in theme_lower for k in ["toán", "đại số", "giải tích", "hình học", "lượng giác", "xác suất", "tích phân", "đạo hàm", "spt_math"]):
-            mode = "spt_math"
-        # Tiếng Anh
-        elif any(k in title_lower or k in theme_lower for k in ["tiếng anh", "english", "lexico", "reading comprehension", "word formation", "spt_english"]):
-            mode = "spt_english"
-        # Hóa học
-        elif any(k in title_lower or k in theme_lower for k in ["hóa", "chemistry", "hữu cơ", "vô cơ", "este", "phản ứng", "cân bằng hóa học", "spt_chemistry"]):
-            mode = "spt_chemistry"
-        # Địa lí
-        elif any(k in title_lower or k in theme_lower for k in ["địa", "geography", "dân cư", "vùng kinh tế", "địa hình", "khí hậu", "spt_geography"]):
-            mode = "spt_geography"
-        # Lịch sử
-        elif any(k in title_lower or k in theme_lower for k in ["lịch sử", "history", "cách mạng", "chiến dịch", "kháng chiến", "hiệp định", "sử", "spt_history"]):
-            mode = "spt_history"
-        # GDKT & Pháp luật
-        elif any(k in title_lower or k in theme_lower for k in ["gdkt", "pháp luật", "kinh tế thị trường", "công dân", "hiến pháp", "spt_civics"]):
-            mode = "spt_civics"
-        # Công nghệ Công nghiệp
-        elif any(k in title_lower or k in theme_lower for k in ["công nghiệp", "cơ khí", "mạch điện", "bản vẽ", "tự động hóa", "công nghệ cn", "spt_tech_ind"]):
-            mode = "spt_tech_ind"
-        # Công nghệ Nông nghiệp
-        elif any(k in title_lower or k in theme_lower for k in ["nông nghiệp", "lâm nghiệp", "thủy sản", "trồng trọt", "chăn nuôi", "công nghệ nn", "spt_tech_agr"]):
-            mode = "spt_tech_agr"
 
     from backend.agent_council.full_exam_generator import SPT_CONFIGS, full_exam_generator
 
     if mode in SPT_CONFIGS:
         cfg = SPT_CONFIGS[mode]
-        # Nếu tiêu đề bị dính chữ "ĐGNL Số..." do cache cũ, tự động đổi về tiêu đề chuẩn của môn SPT
-        if not title_raw or "đgnl số" in title_lower or "đề thi đgnl" in title_lower:
-            final_title = f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {cfg['name']}"
-        else:
-            final_title = title_raw
+        final_title = title_raw or f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {cfg['name']}"
     else:
         mode = "vact_full"
         final_title = resolve_next_exam_title(title_raw, db)

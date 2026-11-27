@@ -6,25 +6,46 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from typing import Dict, Any
 
-def generate_radar_chart_base64(domain_stats: Dict[str, Any]) -> str:
+def generate_radar_chart_base64(domain_stats: Dict[str, Any], is_spt: bool = False) -> str:
     """
-    Sử dụng matplotlib để vẽ Radar Chart (Biểu đồ mạng nhện) 10 cánh năng lực
-    và trả về chuỗi ảnh dạng Base64 PNG.
+    Sử dụng matplotlib để vẽ Radar Chart (Biểu đồ mạng nhện) đánh giá đa chiều năng lực:
+    - 10 miền năng lực cho kỳ thi V-ACT ĐHQG-HCM
+    - Ma trận năng lực nhận thức & kỹ năng khảo thí chuyên sâu cho kỳ thi SPT ĐH Sư Phạm Hà Nội
+    - Hoặc tự động thích ứng theo tập thuộc tính có trong domain_stats
     """
     labels = []
     values = []
     
-    # Thứ tự chuẩn 10 năng lực
-    order = [
+    # Thứ tự chuẩn 10 năng lực V-ACT
+    vact_order = [
         "vietnamese", "english", "math", "logic", "data_analysis",
         "chemistry", "physics", "biology", "history", "geography"
     ]
     
-    for key in order:
-        stat = domain_stats.get(key, {})
-        labels.append(stat.get("name", key))
-        values.append(stat.get("percentage", 0.0))
-        
+    # Kiểm tra xem domain_stats có chứa các key V-ACT hay không
+    has_vact_keys = any(k in domain_stats for k in vact_order)
+    
+    if not is_spt and has_vact_keys:
+        chart_title = "Biểu Đồ Radar Đánh Giá 10 Miền Năng Lực (V-ACT)"
+        for key in vact_order:
+            stat = domain_stats.get(key, {})
+            labels.append(stat.get("name", key))
+            values.append(stat.get("percentage", 0.0))
+    else:
+        chart_title = "Biểu Đồ Radar Đánh Giá Năng Lực Khảo Thí Môn Học (SPT)"
+        for key, stat in domain_stats.items():
+            name = stat.get("name", key)
+            # Rút gọn tên nếu quá dài cho trục radar
+            clean_name = name.split("(")[0].strip() if "(" in name else name
+            labels.append(clean_name)
+            values.append(stat.get("percentage", 0.0))
+            
+    if len(labels) < 3:
+        # Polar chart cần tối thiểu 3 trục đa giác
+        default_axes = ["Nhận biết", "Thông hiểu", "Vận dụng", "Vận dụng cao"]
+        labels = default_axes
+        values = [values[0] if values else 70.0] * 4
+
     num_vars = len(labels)
     # Tính góc cho từng trục
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
@@ -32,14 +53,14 @@ def generate_radar_chart_base64(domain_stats: Dict[str, Any]) -> str:
     values_closed = values + [values[0]]
     angles_closed = angles + [angles[0]]
 
-    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True), facecolor='#ffffff')
+    fig, ax = plt.subplots(figsize=(7.2, 7.2), subplot_kw=dict(polar=True), facecolor='#ffffff')
     
     # Thiết lập góc bắt đầu từ đỉnh (12h) và theo chiều kim đồng hồ
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
 
-    # Đặt nhãn cho các trục
-    plt.xticks(angles, labels, color='#1e293b', size=10, weight='bold')
+    # Đặt nhãn cho các trục với khoảng cách hợp lý
+    plt.xticks(angles, labels, color='#1e293b', size=9.5, weight='bold')
 
     # Trục y từ 0 đến 100%
     ax.set_rlabel_position(0)
@@ -56,7 +77,7 @@ def generate_radar_chart_base64(domain_stats: Dict[str, Any]) -> str:
     ax.plot(angles_closed, benchmark_closed, color='#94a3b8', linewidth=1.2, linestyle='dashed', label='Mức chuẩn TB (60%)')
 
     plt.legend(loc='upper right', bbox_to_anchor=(1.25, 1.1), fontsize=9)
-    plt.title("Biểu Đồ Radar Đánh Giá 10 Miền Năng Lực", size=13, weight='bold', color='#0f172a', pad=20)
+    plt.title(chart_title, size=13, weight='bold', color='#0f172a', pad=22)
     plt.tight_layout()
 
     buf = io.BytesIO()

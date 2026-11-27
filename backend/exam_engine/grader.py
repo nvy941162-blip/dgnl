@@ -366,24 +366,97 @@ def grade_submission(
         })
 
     radar_data = {}
-    for d_key, stat in domain_stats.items():
-        percentage = round((stat["score"] / stat["max_score"] * 100.0), 1) if stat["max_score"] > 0 else 0.0
-        radar_data[d_key] = {
-            "name": stat["name"],
-            "correct": stat["correct"],
-            "total": stat["total"],
-            "score": round(stat["score"], 2),
-            "max_score": round(stat["max_score"], 2),
-            "percentage": percentage
+    if is_spt:
+        # Phân tích năng lực chuyên sâu đa chiều cho từng môn lẻ SPT:
+        # 1. Theo 4 cấp độ tư duy nhận thức
+        # 2. Theo các dạng thức câu hỏi khảo thí
+        diff_labels = {
+            "easy": "Nhận biết",
+            "medium": "Thông hiểu",
+            "hard": "Vận dụng",
+            "very_hard": "Vận dụng cao"
         }
+        type_labels = {
+            "multiple_choice": "Trắc nghiệm khách quan",
+            "true_false": "Đánh giá Đúng/Sai",
+            "short_answer": "Điền đáp số ngắn",
+            "essay": "Tự luận & Luận điểm"
+        }
+
+        spt_competencies = {
+            "nhan_biet": {"name": "Nhận biết (Kiến thức cơ bản)", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+            "thong_hieu": {"name": "Thông hiểu (Bản chất khoa học)", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+            "van_dung": {"name": "Vận dụng (Giải quyết vấn đề)", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+            "van_dung_cao": {"name": "Vận dụng cao (Tư duy tổng hợp)", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+            "trac_nghiem": {"name": "Kỹ năng Trắc nghiệm", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+            "dung_sai": {"name": "Kỹ năng Đa mệnh đề Đúng/Sai", "score": 0.0, "max_score": 0.0, "correct": 0, "total": 0},
+        }
+
+        for r in detailed_results:
+            diff = r.get("difficulty", "medium")
+            q_t = r.get("question_type", "multiple_choice")
+            pts = r.get("points", 0.25)
+            earned = r.get("earned_points", 0.0)
+            is_c = r.get("is_correct", False)
+
+            # Map cognitive level
+            c_key = "nhan_biet" if diff == "easy" else ("thong_hieu" if diff == "medium" else ("van_dung" if diff == "hard" else "van_dung_cao"))
+            spt_competencies[c_key]["total"] += 1
+            spt_competencies[c_key]["max_score"] += pts
+            spt_competencies[c_key]["score"] += earned
+            if is_c:
+                spt_competencies[c_key]["correct"] += 1
+
+            # Map format skill
+            if q_t == "multiple_choice":
+                spt_competencies["trac_nghiem"]["total"] += 1
+                spt_competencies["trac_nghiem"]["max_score"] += pts
+                spt_competencies["trac_nghiem"]["score"] += earned
+                if is_c:
+                    spt_competencies["trac_nghiem"]["correct"] += 1
+            elif q_t == "true_false":
+                spt_competencies["dung_sai"]["total"] += 1
+                spt_competencies["dung_sai"]["max_score"] += pts
+                spt_competencies["dung_sai"]["score"] += earned
+                if is_c:
+                    spt_competencies["dung_sai"]["correct"] += 1
+
+        for c_key, c_val in spt_competencies.items():
+            pct = round((c_val["score"] / c_val["max_score"] * 100.0), 1) if c_val["max_score"] > 0 else 70.0
+            radar_data[c_key] = {
+                "name": c_val["name"],
+                "correct": c_val["correct"],
+                "total": c_val["total"],
+                "score": round(c_val["score"], 2),
+                "max_score": round(c_val["max_score"], 2),
+                "percentage": pct
+            }
+    else:
+        for d_key, stat in domain_stats.items():
+            percentage = round((stat["score"] / stat["max_score"] * 100.0), 1) if stat["max_score"] > 0 else 0.0
+            radar_data[d_key] = {
+                "name": stat["name"],
+                "correct": stat["correct"],
+                "total": stat["total"],
+                "score": round(stat["score"], 2),
+                "max_score": round(stat["max_score"], 2),
+                "percentage": percentage
+            }
+
+    # Tính điểm các phần cho SPT:
+    part1_score = sum(r["earned_points"] for r in detailed_results if r.get("section_id") == "part_1" or r.get("question_type") == "multiple_choice")
+    part2_score = sum(r["earned_points"] for r in detailed_results if r.get("section_id") == "part_2" or r.get("question_type") == "true_false")
+    part3_score = sum(r["earned_points"] for r in detailed_results if r.get("section_id") == "part_3" or r.get("question_type") == "short_answer")
+    part4_score = sum(r["earned_points"] for r in detailed_results if r.get("section_id") == "part_4" or r.get("question_type") == "essay")
 
     return {
         "total_score": round(total_score, 2),
         "max_total_score": actual_max_score,
         "is_spt": is_spt,
-        "sec1_score": round(sec1_score, 2),
-        "sec2_score": round(sec2_score, 2),
-        "sec3_score": round(sec3_score, 2),
+        "sec1_score": round(part1_score if is_spt else sec1_score, 2),
+        "sec2_score": round(part2_score if is_spt else sec2_score, 2),
+        "sec3_score": round(part3_score if is_spt else sec3_score, 2),
+        "sec4_score": round(part4_score, 2),
         "correct_count": correct_count,
         "partial_count": partial_count,
         "wrong_count": wrong_count,

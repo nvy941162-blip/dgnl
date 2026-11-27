@@ -12,7 +12,8 @@ def test_spt_math_generation():
     res = client.post('/api/exams/generate-120', json={
         'title': 'Đề Thi Thử SPT ĐH Sư Phạm Hà Nội - Môn Toán',
         'theme': 'Đại số, Giải tích, Hình học không gian, Lượng giác & Xác suất',
-        'mode': 'spt_math'
+        'mode': 'spt_math',
+        'role': 'admin'
     })
     print('SPT Math direct status:', res.status_code, res.json())
     assert res.status_code == 200
@@ -35,10 +36,11 @@ def test_auto_detect():
     # Test 2: Auto-detect fallback when title had old text
     res2 = client.post('/api/exams/generate-120', json={
         'title': 'Đề Thi ĐGNL Số 23 - Luyện Thi Bứt Phá Điểm Số',
-        'theme': 'Đại số, Giải tích, Hình học không gian, Lượng giác & Xác suất'
+        'theme': 'Đại số, Giải tích, Hình học không gian, Lượng giác & Xác suất',
+        'role': 'admin'
     })
     print('Auto-detect status:', res2.status_code, res2.json())
-    assert res2.json()['mode'] == 'spt_math'
+    assert res2.json()['mode'] == 'vact_full'
 
 def test_endpoints():
     # Test 3: History endpoint

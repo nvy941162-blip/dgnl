@@ -24,16 +24,45 @@ const analyticsView = {
     tierBadge.style.background = comp.tier_color;
     tierBadge.style.color = '#ffffff';
 
-    // 2. Subscores (400 - 300 - 500 for V-ACT)
+    // 2. Subscores (V-ACT or SPT Sections)
     const subscoresBar = document.getElementById('report-subscores-bar');
     if (subscoresBar) {
+      subscoresBar.style.display = 'flex';
       if (grade.is_spt) {
-        subscoresBar.style.display = 'none';
+        subscoresBar.innerHTML = `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần I: Trắc nghiệm</div>
+            <div class="num" style="color: #4f46e5;">${grade.sec1_score} đ</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần II: Đúng / Sai</div>
+            <div class="num" style="color: #0ea5e9;">${grade.sec2_score} đ</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần III: Điền số / Trả lời ngắn</div>
+            <div class="num" style="color: #10b981;">${grade.sec3_score} đ</div>
+          </div>
+          ${(grade.sec4_score && grade.sec4_score > 0) ? `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần IV: Tự luận</div>
+            <div class="num" style="color: #f59e0b;">${grade.sec4_score} đ</div>
+          </div>` : ''}
+        `;
       } else {
-        subscoresBar.style.display = 'flex';
-        document.getElementById('report-sec1-score').innerText = `${grade.sec1_score} / ${grade.sec1_max || 400}`;
-        document.getElementById('report-sec2-score').innerText = `${grade.sec2_score} / ${grade.sec2_max || 300}`;
-        document.getElementById('report-sec3-score').innerText = `${grade.sec3_score} / ${grade.sec3_max || 500}`;
+        subscoresBar.innerHTML = `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 1: Ngôn ngữ</div>
+            <div class="num" style="color: #4f46e5;" id="report-sec1-score">${grade.sec1_score} / ${grade.sec1_max || 400}</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 2: Toán, Logic & Số liệu</div>
+            <div class="num" style="color: #0ea5e9;" id="report-sec2-score">${grade.sec2_score} / ${grade.sec2_max || 300}</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 3: Giải quyết vấn đề</div>
+            <div class="num" style="color: #10b981;" id="report-sec3-score">${grade.sec3_score} / ${grade.sec3_max || 500}</div>
+          </div>
+        `;
       }
     }
 
@@ -476,3 +505,5 @@ const analyticsView = {
     document.body.removeChild(link);
   }
 };
+
+window.analyticsView = analyticsView;

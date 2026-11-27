@@ -44,24 +44,8 @@ const generatorStudio = {
     const title = document.getElementById('full-exam-title-input').value.trim();
     const theme = document.getElementById('full-exam-theme-input').value.trim();
     const modeInput = document.getElementById('full-exam-mode-input');
-    let mode = (modeInput && modeInput.value) ? modeInput.value : (this.currentMode || 'vact_full');
-
-    // Khóa an toàn 2 lớp: Nếu tiêu đề hoặc giao diện đang ở môn SPT cụ thể, bắt buộc truyền mode SPT tương ứng
-    const heroTitle = document.getElementById('generator-hero-title')?.innerText || '';
-    const startBtnEl = document.getElementById('btn-start-full-120')?.innerText || '';
-    const uiText = (heroTitle + " " + startBtnEl + " " + title + " " + theme).toLowerCase();
-
-    if (uiText.includes("toán") || uiText.includes("đại số") || uiText.includes("giải tích")) mode = "spt_math";
-    else if (uiText.includes("tiếng anh") || uiText.includes("english")) mode = "spt_english";
-    else if (uiText.includes("hóa")) mode = "spt_chemistry";
-    else if (uiText.includes("địa lí") || uiText.includes("địa lý") || uiText.includes("vùng kinh tế")) mode = "spt_geography";
-    else if (uiText.includes("lịch sử") || uiText.includes("sử")) mode = "spt_history";
-    else if (uiText.includes("gdkt") || uiText.includes("pháp luật")) mode = "spt_civics";
-    else if (uiText.includes("công nghệ công nghiệp") || uiText.includes("công nghệ cn") || uiText.includes("cơ khí")) mode = "spt_tech_ind";
-    else if (uiText.includes("công nghệ nông nghiệp") || uiText.includes("công nghệ nn") || uiText.includes("nông nghiệp")) mode = "spt_tech_agr";
-
+    const mode = (modeInput && modeInput.value) ? modeInput.value : (this.currentMode || 'vact_full');
     this.currentMode = mode;
-    if (modeInput) modeInput.value = mode;
 
     const startBtn = document.getElementById('btn-start-full-120');
     const statusText = document.getElementById('full-exam-status-text');

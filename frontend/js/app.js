@@ -259,10 +259,25 @@ const app = {
     const modeInput = document.getElementById('full-exam-mode-input');
     if (modeInput) modeInput.value = modeKey;
 
+    // Reset sạch sẽ trạng thái & Cache của Studio tạo đề
+    const readyBanner = document.getElementById('full-exam-ready-banner');
+    if (readyBanner) readyBanner.style.display = 'none';
+
+    const progressBox = document.getElementById('full-exam-progress-box');
+    if (progressBox) progressBox.style.display = 'none';
+
     if (typeof generatorStudio !== 'undefined') {
       generatorStudio.currentMode = modeKey;
+      generatorStudio.isGenerating120 = false;
+      if (generatorStudio.pollTimer) {
+        clearInterval(generatorStudio.pollTimer);
+        generatorStudio.pollTimer = null;
+      }
       if (typeof generatorStudio.updateRecentUI === 'function') {
         generatorStudio.updateRecentUI();
+      }
+      if (modeKey === 'vact_full' && typeof generatorStudio.loadNextExamTitle === 'function') {
+        generatorStudio.loadNextExamTitle();
       }
     }
 
@@ -362,7 +377,10 @@ const app = {
     if (cfg.title && titleInput) titleInput.value = cfg.title;
     if (cfg.theme && themeInput) themeInput.value = cfg.theme;
     if (statusText) statusText.innerText = cfg.desc;
-    if (startBtn && cfg.btnText) startBtn.innerHTML = cfg.btnText;
+    if (startBtn) {
+      startBtn.disabled = false;
+      if (cfg.btnText) startBtn.innerHTML = cfg.btnText;
+    }
     if (badge && cfg.badge) badge.innerText = cfg.badge;
     if (heroTitle && cfg.heroTitle) heroTitle.innerText = cfg.heroTitle;
     if (heroDesc && cfg.heroDesc) heroDesc.innerText = cfg.heroDesc;
