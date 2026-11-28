@@ -2701,7 +2701,7 @@ def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, An
             },
             # 7. Dung sai kích thước
             lambda i: {
-                "prompt": "Một chi tiết trục có kích thước danh nghĩa $\phi 40$ với sai lệch giới hạn trên là $+0.03\text{ mm}$ và sai lệch giới hạn dưới là $-0.02\text{ mm}$. Dung sai kích thước của trục là:",
+                "prompt": "Một chi tiết trục có kích thước danh nghĩa $\\Phi = 40\\text{ mm}$ với sai lệch giới hạn trên là $+0.03\\text{ mm}$ và sai lệch giới hạn dưới là $-0.02\\text{ mm}$. Dung sai kích thước của trục là:",
                 "options": {
                     "A": "0.05 mm.",
                     "B": "0.01 mm.",
@@ -2761,7 +2761,7 @@ def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, An
             },
             # 12. Mạng điện 3 pha
             lambda i: {
-                "prompt": "Trong mạch điện 3 pha 4 dây đối xứng có điện áp pha $U_p = 220\text{ V}$, giá trị điện áp dây $U_d$ giữa hai dây pha bất kỳ xấp xỉ bằng:",
+                "prompt": "Trong mạch điện 3 pha 4 dây đối xứng có điện áp pha $U_p = 220\\text{ V}$, giá trị điện áp dây $U_d$ giữa hai dây pha bất kỳ xấp xỉ bằng:",
                 "options": {
                     "A": "380 V.",
                     "B": "220 V.",
@@ -2809,7 +2809,7 @@ def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, An
             },
             # 16. Truyền động cơ khí
             lambda i: {
-                "prompt": "Bộ truyền động đai có đường kính bánh dẫn $d_1 = 100\text{ mm}$ quay với tốc độ $n_1 = 1400\text{ vòng/phút}$. Nếu bánh bị dẫn có đường kính $d_2 = 200\text{ mm}$ (bỏ qua trượt đai), tốc độ quay $n_2$ là:",
+                "prompt": "Bộ truyền động đai có đường kính bánh dẫn $d_1 = 100\\text{ mm}$ quay với tốc độ $n_1 = 1400\\text{ vòng/phút}$. Nếu bánh bị dẫn có đường kính $d_2 = 200\\text{ mm}$ (bỏ qua trượt đai), tốc độ quay $n_2$ là:",
                 "options": {
                     "A": "700 vòng/phút.",
                     "B": "2800 vòng/phút.",
@@ -2926,7 +2926,7 @@ def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, An
     elif q_type == "short_answer":
         sa_templates = [
             lambda i: {
-                "prompt": f"Một động cơ điện xoay chiều một pha có công suất tiêu thụ P = {i % 4 * 100 + 440}\text{{ W}} hoạt động ở điện áp hiệu dụng U = 220\text{{ V}} với hệ số công suất $\cos\varphi = 0.8$. Cường độ dòng điện hiệu dụng chạy qua động cơ bằng bao nhiêu Ampe? (Làm tròn đến 1 chữ số thập phân)",
+                "prompt": f"Một động cơ điện xoay chiều một pha có công suất tiêu thụ $P = {i % 4 * 100 + 440}\\text{{ W}}$ hoạt động ở điện áp hiệu dụng $U = 220\\text{{ V}}$ với hệ số công suất $\\cos\\varphi = 0.8$. Cường độ dòng điện hiệu dụng chạy qua động cơ bằng bao nhiêu Ampe? (Làm tròn đến 1 chữ số thập phân)",
                 "correct_answer": f"{round((i % 4 * 100 + 440) / (220 * 0.8), 1)}",
                 "accepted_answers": [f"{round((i % 4 * 100 + 440) / (220 * 0.8), 1)}"],
                 "explanation": f"I = P / (U * cos(phi)) = {i % 4 * 100 + 440} / (220 * 0.8) = {round((i % 4 * 100 + 440) / (220 * 0.8), 1)} A."
@@ -2938,19 +2938,19 @@ def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, An
                 "explanation": f"i = z2 / z1 = {i % 3 * 20 + 60} / 20 = {(i % 3 * 20 + 60) // 20}."
             },
             lambda i: {
-                "prompt": f"Một chi tiết trục có đường kính gia công $\phi 50$ với sai lệch trên là $+0.0{i % 3 + 2}\text{{ mm}}$ và sai lệch dưới là $-0.0{i % 3 + 1}\text{{ mm}}$. Tính dung sai kích thước T của chi tiết theo đơn vị milimet (mm).",
+                "prompt": f"Một chi tiết trục có đường kính gia công $\\Phi = 50\\text{{ mm}}$ với sai lệch trên là $+0.0{i % 3 + 2}\\text{{ mm}}$ và sai lệch dưới là $-0.0{i % 3 + 1}\\text{{ mm}}$. Tính dung sai kích thước T của chi tiết theo đơn vị milimet (mm).",
                 "correct_answer": f"{round(0.02 + 0.01 + (i % 3) * 0.02, 3)}",
                 "accepted_answers": [f"{round(0.02 + 0.01 + (i % 3) * 0.02, 3)}"],
                 "explanation": f"T = es - ei = {round(0.02 + 0.01 + (i % 3) * 0.02, 3)} mm."
             },
             lambda i: {
-                "prompt": "Một mạng điện 3 pha hình sao đối xứng có điện áp pha $U_p = 220\text{ V}$. Điện áp dây $U_d$ giữa hai dây pha xấp xỉ bằng bao nhiêu Vôn? (Lấy số nguyên gần nhất)",
+                "prompt": "Một mạng điện 3 pha hình sao đối xứng có điện áp pha $U_p = 220\\text{ V}$. Điện áp dây $U_d$ giữa hai dây pha xấp xỉ bằng bao nhiêu Vôn? (Lấy số nguyên gần nhất)",
                 "correct_answer": "380",
                 "accepted_answers": ["380", "381"],
                 "explanation": "Ud = sqrt(3) * Up = 1.732 * 220 ≈ 381 V (chuẩn công nghiệp 380V)."
             },
             lambda i: {
-                "prompt": "Một động cơ cơ khí sinh công có công suất có ích $P_{ich} = 1700\text{ W}$ trong khi tiêu thụ điện năng với công suất toàn phần $P_{tp} = 2000\text{ W}$. Hiệu suất $\eta$ của động cơ bằng bao nhiêu phần trăm (%)?",
+                "prompt": "Một động cơ cơ khí sinh công có công suất có ích $P_{ich} = 1700\\text{ W}$ trong khi tiêu thụ điện năng với công suất toàn phần $P_{tp} = 2000\\text{ W}$. Hiệu suất $\\eta$ của động cơ bằng bao nhiêu phần trăm (%)?",
                 "correct_answer": "85",
                 "accepted_answers": ["85", "85%"],
                 "explanation": "Hiệu suất = (1700 / 2000) * 100% = 85%."
@@ -3302,19 +3302,19 @@ def _generate_fresh_tech_agr(sec_id: str, q_type: str, idx: int) -> Dict[str, An
     elif q_type == "short_answer":
         sa_templates = [
             lambda i: {
-                "prompt": f"Một trang trại chuẩn bị chuồng nuôi lợn thịt có diện tích S = {i % 4 * 30 + 120}\text{{ m}}^2. Theo tiêu chuẩn mật độ nuôi là 1,5\text{{ m}}^2/con. Số lượng lợn thịt tối đa trang trại có thể nuôi trong chuồng này là bao nhiêu con?",
+                "prompt": f"Một trang trại chuẩn bị chuồng nuôi lợn thịt có diện tích $S = {i % 4 * 30 + 120}\\text{{ m}}^2$. Theo tiêu chuẩn mật độ nuôi là $1.5\\text{{ m}}^2/\\text{{con}}$. Số lượng lợn thịt tối đa trang trại có thể nuôi trong chuồng này là bao nhiêu con?",
                 "correct_answer": f"{(i % 4 * 30 + 120) * 2 // 3}",
                 "accepted_answers": [f"{(i % 4 * 30 + 120) * 2 // 3}", f"{(i % 4 * 30 + 120) * 2 // 3} con"],
                 "explanation": f"Số con = {i % 4 * 30 + 120} / 1.5 = {(i % 4 * 30 + 120) * 2 // 3} con."
             },
             lambda i: {
-                "prompt": f"Một nhà màng trồng dưa lưới công nghệ cao có diện tích 1000\text{{ m}}^2. Mật độ trồng trung bình là 2,5 cây/m^2. Tỷ lệ đậu quả đạt 90%, mỗi cây nuôi đúng 1 quả có trọng lượng bình quân {round(1.4 + (i % 3) * 0.2, 1)}\text{{ kg}}. Tính sản lượng dưa lưới dự kiến thu hoạch của nhà màng theo đơn vị tấn. (Làm tròn đến 1 chữ số thập phân)",
+                "prompt": f"Một nhà màng trồng dưa lưới công nghệ cao có diện tích $1000\\text{{ m}}^2$. Mật độ trồng trung bình là $2.5\\text{{ cây/m}}^2$. Tỷ lệ đậu quả đạt 90%, mỗi cây nuôi đúng 1 quả có trọng lượng bình quân ${round(1.4 + (i % 3) * 0.2, 1)}\\text{{ kg}}$. Tính sản lượng dưa lưới dự kiến thu hoạch của nhà màng theo đơn vị tấn. (Làm tròn đến 1 chữ số thập phân)",
                 "correct_answer": f"{round(2500 * 0.9 * (1.4 + (i % 3) * 0.2) / 1000, 1)}",
                 "accepted_answers": [f"{round(2500 * 0.9 * (1.4 + (i % 3) * 0.2) / 1000, 1)}", f"{round(2500 * 0.9 * (1.4 + (i % 3) * 0.2) / 1000, 1)} tấn"],
                 "explanation": f"Sản lượng = 2500 cây * 0.9 * {round(1.4 + (i % 3) * 0.2, 1)} kg = {round(2500 * 0.9 * (1.4 + (i % 3) * 0.2) / 1000, 1)} tấn."
             },
             lambda i: {
-                "prompt": "Một bể nuôi thủy sản tuần hoàn RAS thể tích V = 50\text{ m}^3. Máy bơm tuần hoàn nước với lưu lượng Q = 100\text{ m}^3/giờ. Số lần toàn bộ khối lượng nước trong bể được luân chuyển lọc qua hệ thống trong một giờ là bao nhiêu lần?",
+                "prompt": "Một bể nuôi thủy sản tuần hoàn RAS thể tích $V = 50\\text{ m}^3$. Máy bơm tuần hoàn nước với lưu lượng $Q = 100\\text{ m}^3/\\text{giờ}$. Số lần toàn bộ khối lượng nước trong bể được luân chuyển lọc qua hệ thống trong một giờ là bao nhiêu lần?",
                 "correct_answer": "2",
                 "accepted_answers": ["2", "2 lần"],
                 "explanation": "Số lần luân chuyển = Q / V = 100 / 50 = 2 lần/giờ."

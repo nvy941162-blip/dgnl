@@ -427,13 +427,22 @@ const app = {
       .replace(/\s*\((?:Mã đề|Đề số)\s*#?\d+\)/gi, '')
       .replace(/\s*\[(?:Biến thể|Đề số|Mã đề)\s*#?\d+\]/gi, '');
 
+    // Khắc phục triệt để các lỗi ký tự escape bị biến dạng (tab, vertical tab, ô vuông unicode)
+    str = str
+      .replace(/[\x0b\u000b\u25A1\uFFFD\?]?\s*arphi/g, '\\varphi')
+      .replace(/\\cos\s*\\?arphi/g, '\\cos\\varphi')
+      .replace(/\\cos\\?varphi/g, '\\cos\\varphi')
+      .replace(/(?:[\t\r\n]|\s+)ext\{([^}]+)\}/g, ' \\text{$1}')
+      .replace(/\bext\{([^}]+)\}/g, '\\text{$1}')
+      .replace(/\\phi\s*(\d+)/g, '\\Phi = $1\\text{ mm}');
+
     // Tách chuỗi theo các khối đã có dấu $ (ví dụ $$...$$ hoặc $...$)
     // để không can thiệp làm hỏng các công thức đã bọc chuẩn
     const tokens = str.split(/(\$\$[\s\S]*?\$\$|\$[^\$\n]+?\$)/g);
     
     // Pattern tìm các công thức LaTeX trần chưa được bọc dấu $
     // Bao gồm: số + \text{...}, \frac, \sqrt, \int, \log, \vec, \lim, \sum, \text{...}, ký hiệu hy lạp, quan hệ toán học
-    const nakedPattern = /(\b\d+(?:[.,]\d+)?\s*\\text\{[^{}]+\}(?:\^[^{}\s]+)?|\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)|text\{[^{}]+\}(?:\^[^{}\s]+)?|(?:alpha|beta|gamma|delta|Delta|lambda|Lambda|mu|pi|rho|sigma|omega|Omega|infty|approx|ne|le|ge|pm|times|cdot|perp|parallel|angle)\b))/g;
+    const nakedPattern = /(\b[a-zA-Z](?:_\{[^{}]+\})?\s*=\s*\d+(?:[.,]\d+)?\s*\\text\{[^{}]+\}(?:\^[^{}\s]+)?|\b\\cos\\varphi(?:\s*=\s*[\d.]+)?|\b\d+(?:[.,]\d+)?\s*\\text\{[^{}]+\}(?:\^[^{}\s]+)?|\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)|text\{[^{}]+\}(?:\^[^{}\s]+)?|(?:alpha|beta|gamma|delta|Delta|lambda|Lambda|mu|pi|rho|sigma|omega|Omega|varphi|phi|Phi|eta|infty|approx|ne|le|ge|pm|times|cdot|perp|parallel|angle)\b))/g;
 
     const parts = tokens.map(token => {
       if (!token) return '';
