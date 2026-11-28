@@ -8,6 +8,15 @@ Dữ liệu đề thi tham khảo chính thức SPT cho 6 môn tiếp theo:
 8. Công nghệ Định hướng Nông nghiệp (60 phút)
 """
 
+from backend.exam_engine.diagram_generator import (
+    draw_orthographic_projection,
+    draw_smart_greenhouse_diagram,
+    draw_hydroponics_nft_diagram,
+    draw_nanosilver_chart,
+    draw_climate_chart,
+    draw_gdp_structure_chart
+)
+
 # --------------------------------------------------------------------------
 # 3. SPT MÔN HÓA HỌC (60 PHÚT - THANG 10)
 # --------------------------------------------------------------------------

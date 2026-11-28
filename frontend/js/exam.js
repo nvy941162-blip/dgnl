@@ -8,8 +8,16 @@ const examRunner = {
   timerInterval: null,
   examStartTime: null,
 
+  isExamInProgress() {
+    return false; // Tạm thời bỏ tính năng khóa phòng thi theo yêu cầu của bạn
+  },
+
   async startBenchmarkExam() {
     await this.loadAndStartExam("dgnl_benchmark_standard_2025");
+  },
+
+  async startSPTExam(subjectId) {
+    await this.loadAndStartExam(`spt_sample_${subjectId}`);
   },
 
   async loadAndStartExam(examId) {
@@ -143,11 +151,11 @@ const examRunner = {
     const groups = [];
 
     if (isSpt) {
-      // SPT có 4 phần: Trắc nghiệm, Đúng/Sai, Điền đáp số, Tự luận
-      const p1 = questions.filter(q => q.section_id === 'part_1' || q.question_type === 'multiple_choice');
-      const p2 = questions.filter(q => q.section_id === 'part_2' || q.question_type === 'true_false');
-      const p3 = questions.filter(q => q.section_id === 'part_3' || q.question_type === 'short_answer');
-      const p4 = questions.filter(q => q.section_id === 'part_4' || q.question_type === 'essay');
+      // Phân nhóm không trùng lặp dựa trên question_type
+      const p1 = questions.filter(q => q.question_type === 'multiple_choice' || (!q.question_type && q.section_id !== 'part_2' && q.section_id !== 'part_3' && q.section_id !== 'part_4'));
+      const p2 = questions.filter(q => q.question_type === 'true_false');
+      const p3 = questions.filter(q => q.question_type === 'short_answer');
+      const p4 = questions.filter(q => q.question_type === 'essay');
 
       if (p1.length > 0) groups.push({ title: `Phần I: Trắc nghiệm (${p1.length} câu)`, questions: p1 });
       if (p2.length > 0) groups.push({ title: `Phần II: Đúng / Sai (${p2.length} câu)`, questions: p2 });
@@ -279,9 +287,15 @@ const examRunner = {
       chartContainer.style.display = 'block';
       chartImg.src = imageSource;
       if (q.domain === 'geography') {
-        contextTag.innerText = "Bản đồ / Sơ đồ Địa lý";
+        contextTag.innerText = "Biểu đồ Địa lý & Khí hậu";
       } else if (q.domain === 'data_analysis') {
-        contextTag.innerText = "Biểu đồ phân tích số liệu";
+        contextTag.innerText = "Biểu đồ Phân tích Số liệu";
+      } else if (q.domain === 'tech_industry') {
+        contextTag.innerText = "Bản vẽ Kỹ thuật & Hình chiếu";
+      } else if (q.domain === 'tech_agriculture') {
+        contextTag.innerText = "Sơ đồ Công nghệ Nông nghiệp";
+      } else if (q.domain === 'math') {
+        contextTag.innerText = "Đồ thị Hàm số & Hình học không gian";
       } else {
         contextTag.innerText = "Hình ảnh / Sơ đồ minh họa";
       }
@@ -298,7 +312,10 @@ const examRunner = {
 
     // Prompt
     const promptEl = document.getElementById('question-prompt-text');
-    promptEl.innerHTML = app.formatMathText(q.prompt);
+    const cleanPrompt = (q.prompt || '')
+      .replace(/\s*\((?:Mã đề|Đề số)\s*#?\d+\)/gi, '')
+      .replace(/\s*\[(?:Biến thể|Đề số|Mã đề)\s*#?\d+\]/gi, '');
+    promptEl.innerHTML = app.formatMathText(cleanPrompt);
 
     // Options Container - Hỗ trợ cả 4 dạng câu hỏi:
     const optionsContainer = document.getElementById('question-options-list');
@@ -307,8 +324,9 @@ const examRunner = {
     if (qType === 'multiple_choice') {
       // DẠNG 1: TRẮC NGHIỆM 4 PHƯƠNG ÁN (A, B, C, D)
       const selectedOption = this.userAnswers[qNum];
+      const opts = this.normalizeOptions(q.options);
       ['A', 'B', 'C', 'D'].forEach(optKey => {
-        const optText = q.options ? q.options[optKey] : '';
+        const optText = opts[optKey] || '';
         if (!optText) return;
 
         const optItem = document.createElement('div');
@@ -327,7 +345,7 @@ const examRunner = {
       });
     } else if (qType === 'true_false') {
       // DẠNG 2: TRẮC NGHIỆM ĐÚNG / SAI 4 MỆNH ĐỀ (a, b, c, d)
-      const stmts = q.tf_statements || {};
+      const stmts = this.normalizeTfStatements(q.tf_statements);
       const currentAns = (this.userAnswers[qNum] && typeof this.userAnswers[qNum] === 'object') ? this.userAnswers[qNum] : {};
 
       const tableWrapper = document.createElement('div');
@@ -530,10 +548,18 @@ const examRunner = {
       const submissionResult = await res.json();
       
       this.clearSession();
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      this.examData = null; // Mở khóa phòng thi sau khi đã nộp bài thành công
       app.latestSubmission = submissionResult;
       
       // Chuyển sang màn hình Báo cáo Phân tích Năng lực
-      analyticsView.renderReport(submissionResult);
+      const repView = window.analyticsView || (typeof analyticsView !== 'undefined' ? analyticsView : null);
+      if (repView && typeof repView.renderReport === 'function') {
+        repView.renderReport(submissionResult);
+      }
       app.showTab('analytics');
     } catch (err) {
       alert("Lỗi nộp bài thi: " + err.message);
@@ -623,6 +649,209 @@ const examRunner = {
       hard: "Vận dụng",
       very_hard: "Vận dụng cao"
     };
-    return map[diff] || diff;
+    return map[diff] || diff || "Thông hiểu";
+  },
+
+  normalizeOptions(rawOptions) {
+    if (!rawOptions) return {};
+    let opts = rawOptions;
+    if (typeof opts === 'string') {
+      try { opts = JSON.parse(opts); } catch (e) { return {}; }
+    }
+    const res = {};
+    if (Array.isArray(opts)) {
+      const letters = ['A', 'B', 'C', 'D'];
+      opts.slice(0, 4).forEach((item, idx) => {
+        const key = letters[idx];
+        let str = String(item || '').trim();
+        const m = str.match(/^[A-Da-d][.)]\s*(.*)$/);
+        if (m) str = m[1];
+        res[key] = str;
+      });
+    } else if (typeof opts === 'object') {
+      ['A', 'B', 'C', 'D'].forEach(k => {
+        const val = (opts[k] !== undefined && opts[k] !== null) ? opts[k] : opts[k.toLowerCase()];
+        if (val !== undefined && val !== null) {
+          res[k] = String(val).trim();
+        }
+      });
+    }
+    return res;
+  },
+
+  normalizeTfStatements(rawStmts) {
+    if (!rawStmts) return {};
+    let stmts = rawStmts;
+    if (typeof stmts === 'string') {
+      try { stmts = JSON.parse(stmts); } catch (e) { return {}; }
+    }
+    const res = {};
+    if (Array.isArray(stmts)) {
+      const letters = ['a', 'b', 'c', 'd'];
+      stmts.slice(0, 4).forEach((item, idx) => {
+        const defaultKey = letters[idx];
+        if (typeof item === 'object' && item !== null) {
+          const key = (item.id || defaultKey).toLowerCase();
+          const text = item.text || item.statement || JSON.stringify(item);
+          res[key] = String(text).trim();
+        } else {
+          let str = String(item || '').trim();
+          const m = str.match(/^[a-da-d][.)]\s*(.*)$/);
+          if (m) str = m[1];
+          res[defaultKey] = str;
+        }
+      });
+    } else if (typeof stmts === 'object') {
+      ['a', 'b', 'c', 'd'].forEach(k => {
+        const val = (stmts[k] !== undefined && stmts[k] !== null) ? stmts[k] : stmts[k.toUpperCase()];
+        if (val !== undefined && val !== null) {
+          res[k] = String(val).trim();
+        }
+      });
+    }
+    return res;
+  },
+
+  exportWordExam() {
+    if (!this.examData || !this.examData.questions || this.examData.questions.length === 0) {
+      alert("Chưa có dữ liệu đề thi để xuất file Word!");
+      return;
+    }
+
+    const exam = this.examData;
+    const isSpt = (exam.exam_type === 'spt');
+    const questions = exam.questions || [];
+    const cleanFn = (typeof analyticsView !== 'undefined' && analyticsView.cleanLatexForExport) ? analyticsView.cleanLatexForExport.bind(analyticsView) : (txt) => String(txt || '').replace(/\$/g, '');
+
+    const questionsHtml = questions.map((q, idx) => {
+      const qNum = q.question_number || (idx + 1);
+      const prompt = cleanFn(q.prompt || '');
+      const qType = q.question_type || 'multiple_choice';
+
+      let bodyHtml = '';
+      if (qType === 'multiple_choice') {
+        const opts = this.normalizeOptions(q.options);
+        const optLines = ['A', 'B', 'C', 'D'].map(k => {
+          const optVal = cleanFn(opts[k] || '');
+          return `<div style="margin-left: 15pt; margin-bottom: 3pt;"><strong>${k}.</strong> ${optVal}</div>`;
+        }).join('');
+        bodyHtml = `<div style="margin-top: 4pt;">${optLines}</div>`;
+      } else if (qType === 'true_false') {
+        const stmts = this.normalizeTfStatements(q.tf_statements);
+        const rows = ['a', 'b', 'c', 'd'].map(k => {
+          const sText = cleanFn(stmts[k] || '');
+          return `
+            <tr>
+              <td style="width: 30pt; text-align: center; border: 1px solid #cbd5e1; font-weight: bold;">${k}</td>
+              <td style="padding: 4pt; border: 1px solid #cbd5e1;">${sText}</td>
+              <td style="width: 60pt; text-align: center; border: 1px solid #cbd5e1;">[ &nbsp; ]</td>
+            </tr>
+          `;
+        }).join('');
+        bodyHtml = `
+          <table style="width: 100%; border-collapse: collapse; margin-top: 6pt;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="padding: 4pt; border: 1px solid #cbd5e1;">Ý</th>
+                <th style="padding: 4pt; border: 1px solid #cbd5e1; text-align: left;">Nội dung nhận định</th>
+                <th style="padding: 4pt; border: 1px solid #cbd5e1;">Đúng/Sai</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } else if (qType === 'short_answer' || qType === 'fill_blank') {
+        bodyHtml = `<div style="margin-top: 6pt; font-style: italic; color: #475569;">Đáp số của thí sinh: ........................................................................................</div>`;
+      } else {
+        bodyHtml = `<div style="margin-top: 8pt; border: 1px dashed #94a3b8; padding: 12pt; height: 60pt; color: #94a3b8; font-style: italic;">(Thí sinh làm bài tự luận vào phần giấy thi riêng)</div>`;
+      }
+
+      return `
+        <div style="margin-bottom: 14pt; page-break-inside: avoid;">
+          <div><strong style="color: #1e3a8a;">Câu ${qNum}:</strong> ${prompt}</div>
+          ${bodyHtml}
+        </div>
+      `;
+    }).join('');
+
+    // Bảng đáp án
+    const answerKeys = questions.map((q, idx) => {
+      const qNum = q.question_number || (idx + 1);
+      let ans = q.correct_answer;
+      if (typeof ans === 'object' && ans !== null) {
+        ans = Object.entries(ans).map(([k, v]) => `${k}:${v}`).join(', ');
+      }
+      return `<td style="padding: 4pt 6pt; border: 1px solid #cbd5e1; text-align: center; font-size: 10pt;"><strong>${qNum}:</strong> ${cleanFn(String(ans || ''))}</td>`;
+    });
+
+    // Chia thành các hàng 10 câu
+    let keyTableRows = '';
+    for (let i = 0; i < answerKeys.length; i += 10) {
+      keyTableRows += `<tr>${answerKeys.slice(i, i + 10).join('')}</tr>`;
+    }
+
+    const wordHtml = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>${exam.title} - Đề Thi Chuẩn Word</title>
+        <style>
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.35;
+            color: #000;
+            margin: 20mm;
+          }
+          .exam-header { width: 100%; border-collapse: collapse; margin-bottom: 15pt; }
+          .exam-header td { vertical-align: top; border: none; }
+        </style>
+      </head>
+      <body>
+        <table class="exam-header">
+          <tr>
+            <td style="text-align: center; width: 45%;">
+              <strong>${isSpt ? 'TRƯỜNG ĐẠI HỌC SƯ PHẠM HÀ NỘI' : 'ĐẠI HỌC QUỐC GIA TP. HỒ CHÍ MINH'}</strong><br>
+              <strong>KỲ THI ĐÁNH GIÁ NĂNG LỰC HỌC SINH THPT</strong><br>
+              -----------------------
+            </td>
+            <td style="text-align: center; width: 55%;">
+              <strong>ĐỀ THI CHÍNH THỨC</strong><br>
+              <em>Thời gian làm bài: ${exam.duration_minutes || 60} phút (không kể thời gian phát đề)</em><br>
+              <strong>Số lượng câu hỏi: ${questions.length} câu</strong>
+            </td>
+          </tr>
+        </table>
+
+        <div style="text-align: center; margin: 15pt 0; border-top: 1.5pt solid #000; border-bottom: 1.5pt solid #000; padding: 6pt 0;">
+          <h2 style="margin: 0; font-size: 14pt;">${cleanFn(exam.title)}</h2>
+          <small style="font-style: italic;">Họ và tên thí sinh: .............................................................. Số báo danh: .................................</small>
+        </div>
+
+        <div style="margin-top: 15pt;">
+          ${questionsHtml}
+        </div>
+
+        <div style="page-break-before: always; margin-top: 25pt;">
+          <h3 style="text-align: center; margin-bottom: 8pt;">BẢNG ĐÁP ÁN THAM KHẢO & ĐỐI CHIẾU CHUẨN</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 6pt;">
+            <tbody>
+              ${keyTableRows}
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `De_Thi_Chuan_${dateStr}.doc`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 };

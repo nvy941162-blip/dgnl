@@ -748,24 +748,33 @@ body {
 }
 
 /* ==========================================================================
-   KATEX FORMULA DISPLAY STYLING
+   KATEX FORMULA DISPLAY STYLING - CHUẨN ĐỒ HỌA TOÁN HỌC KHẢO THÍ K12
    ========================================================================== */
 
 .katex {
-  font-size: 1.1em !important;
-  text-rendering: auto;
+  font-size: 1.18em !important;
+  color: #0f172a !important;
+  text-rendering: optimizeLegibility;
+  line-height: 1.45 !important;
 }
 
 .katex-display {
-  margin: 0.6em 0 !important;
+  margin: 0.75rem 0 !important;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0.4em 0;
+  padding: 0.6rem 1rem !important;
   max-width: 100%;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid #6366f1;
+}
+
+.katex-display .katex {
+  font-size: 1.25em !important;
 }
 
 .katex-display::-webkit-scrollbar {
-  height: 4px;
+  height: 5px;
 }
 
 .katex-display::-webkit-scrollbar-thumb {
@@ -776,7 +785,25 @@ body {
 /* Inline math contrast and spacing */
 .math-inline {
   display: inline-block;
-  padding: 0 2px;
+  padding: 0 3px;
+  vertical-align: -0.15em;
+}
+
+/* Option math styling: preserve comfortable height for fractions & exponents */
+.option-content-text {
+  line-height: 1.6;
+}
+
+.option-content-text .katex {
+  font-size: 1.15em !important;
+}
+
+.tf-statement-text {
+  line-height: 1.6;
+}
+
+.tf-statement-text .katex {
+  font-size: 1.15em !important;
 }
 
 /* ==========================================================================
@@ -1490,9 +1517,16 @@ button, input, select, textarea, .option-item, .palette-btn, .tf-btn {
     gap: 0.25rem;
   }
 
-  .img-zoom-btn {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
+  /* Sticky Bottom Exam Action Controls for Mobile Comfort */
+  #exam-navigation-actions {
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    z-index: 50;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    margin: 1rem -0.75rem 0 -0.75rem !important;
+    padding: 0.65rem 0.75rem !important;
+    border-top: 1.5px solid #cbd5e1 !important;
   }
 }
 

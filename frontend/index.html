@@ -274,6 +274,9 @@
           <a id="exam-print-btn" href="#" target="_blank" class="btn btn-outline" style="text-decoration: none; padding: 0.5rem 0.9rem; font-size: 0.9rem; font-weight: 600;" title="Mở trang in đề thi A4">
             🖨️ In Đề
           </a>
+          <button id="exam-export-word-btn" class="btn btn-outline" style="padding: 0.5rem 0.9rem; font-size: 0.9rem; font-weight: 600; color:#1e40af; border-color:#93c5fd;" onclick="examRunner.exportWordExam()" title="Tải đề thi về máy dưới dạng file Word (.doc) chuẩn không chứa mã LaTeX">
+            📄 Xuất Word Đề
+          </button>
           <button class="btn btn-success" onclick="examRunner.confirmSubmitExam()">
             📤 Nộp Bài Thi
           </button>
@@ -521,12 +524,82 @@
             <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem;" onclick="analyticsView.copyReportText()" title="Sao chép tóm tắt kết quả bài thi để dán (Ctrl+V) vào Zalo, Word, Excel">
               📋 Sao Chép Báo Cáo Điểm
             </button>
-            <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem;" onclick="analyticsView.exportCSV()" title="Tải bảng điểm chi tiết cả bài thi về máy dưới dạng Excel/CSV">
+            <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem;" onclick="analyticsView.copyJSON()" title="Sao chép toàn bộ dữ liệu hồ sơ năng lực dạng JSON để dán vào Python, R, SPSS, Colab">
+              📋 Sao Chép JSON
+            </button>
+            <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem;" onclick="analyticsView.exportCSV()" title="Tải bảng điểm chi tiết cả bài thi về máy dưới dạng Excel/CSV (đã khử sạch mã LaTeX sang ký tự chuẩn)">
               📥 Xuất File Excel (CSV)
+            </button>
+            <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem; color:#1e40af; border-color:#93c5fd;" onclick="analyticsView.exportWord()" title="Tải toàn bộ hồ sơ năng lực và bảng điểm chi tiết ra file Word (.doc) chuẩn đồ họa, không chứa mã LaTeX">
+              📄 Xuất File Word (.doc)
+            </button>
+            <button class="btn btn-outline" style="background:#ffffff; font-weight:600; padding:0.55rem 1rem;" onclick="analyticsView.exportJSON()" title="Tải file JSON chuẩn chứa trọn vẹn điểm số, tham số IRT và ma trận năng lực đa chiều">
+              📥 Xuất File JSON (Khảo Thí)
             </button>
             <button class="btn btn-success" style="font-weight:600; padding:0.55rem 1rem;" onclick="window.print()" title="In phiếu điểm hoặc lưu thành file PDF A4">
               🖨️ In Phiếu Điểm (PDF)
             </button>
+          </div>
+        </div>
+
+        <!-- Báo Cáo & Nhận Xét Năng Lực Chuẩn Khảo Thí IRT (Item Response Theory) -->
+        <div class="card" id="report-irt-card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); border: 1.5px solid #bfdbfe;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1.5rem;">🎯</span>
+              <div>
+                <h3 style="font-size: 1.25rem; color: #1e3a8a; margin: 0;">Báo Cáo & Nhận Xét Năng Lực Khảo Thí IRT (Item Response Theory)</h3>
+                <small style="color: #64748b;">Ước lượng năng lực tiềm ẩn $\theta$, sai số đo lường $\text{SEM}$ và phân tích 4 bậc nhận thức GDPT 2018</small>
+              </div>
+            </div>
+            <span class="badge badge-primary" id="irt-model-badge" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">Mô hình 2PL / 3PL Khảo Thí</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+            <div style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0;">
+              <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">CHỈ SỐ NĂNG LỰC TIỀM ẨN ($\theta$)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #2563eb; margin: 0.2rem 0;" id="irt-theta-value">+1.25</div>
+              <small style="color: #64748b;" id="irt-ci-display">Khoảng tin cậy 95%: [+0.85; +1.65]</small>
+            </div>
+            <div style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0;">
+              <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">SAI SỐ ĐO LƯỜNG CHUẨN (SEM)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #059669; margin: 0.2rem 0;" id="irt-sem-value">±0.21</div>
+              <small style="color: #059669;">Độ tin cậy đo lường: Rất cao (>90%)</small>
+            </div>
+            <div style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0;">
+              <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">MỨC ĐỘ TƯ DUY NỔI TRỘI</div>
+              <div style="font-size: 1.2rem; font-weight: 700; color: #7c3aed; margin: 0.4rem 0;" id="irt-cognitive-dominant">Vận Dụng (Tư Duy Độc Lập)</div>
+              <small style="color: #64748b;" id="irt-percentile-hint">Thuộc top thí sinh phân hóa tốt</small>
+            </div>
+          </div>
+
+          <!-- 4 Bậc nhận thức GDPT 2018 -->
+          <div style="background: #ffffff; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin-bottom: 1.25rem;">
+            <div style="font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 0.65rem;">Hiệu Suất Theo 4 Bậc Nhận Thức Khảo Thí:</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem;" id="irt-cognitive-grid">
+              <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: 0.4rem; border-left: 3px solid #10b981;">
+                <small style="color: #64748b; display: block;">Nhận biết</small>
+                <strong id="cog-p-easy" style="font-size: 1.05rem; color: #10b981;">85%</strong>
+              </div>
+              <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: 0.4rem; border-left: 3px solid #3b82f6;">
+                <small style="color: #64748b; display: block;">Thông hiểu</small>
+                <strong id="cog-p-med" style="font-size: 1.05rem; color: #3b82f6;">75%</strong>
+              </div>
+              <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: 0.4rem; border-left: 3px solid #f59e0b;">
+                <small style="color: #64748b; display: block;">Vận dụng</small>
+                <strong id="cog-p-hard" style="font-size: 1.05rem; color: #f59e0b;">60%</strong>
+              </div>
+              <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: 0.4rem; border-left: 3px solid #ef4444;">
+                <small style="color: #64748b; display: block;">Vận dụng cao</small>
+                <strong id="cog-p-vhard" style="font-size: 1.05rem; color: #ef4444;">45%</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nhận xét chi tiết từ mô hình IRT -->
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 0.5rem; padding: 1rem;">
+            <strong style="color: #166534; font-size: 0.95rem; display: block; margin-bottom: 0.4rem;">💬 Nhận Xét Khảo Thí Định Lượng & Hướng Bứt Phá:</strong>
+            <div id="report-irt-commentary" style="font-size: 0.92rem; line-height: 1.65; color: #1e293b;"></div>
           </div>
         </div>
 
@@ -643,14 +716,24 @@
 
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-          <h3 style="color: var(--primary); margin: 0;">Danh Sách Tài Khoản Học Sinh & Thống Kê Thi Thử</h3>
-          <span id="admin-user-count" class="badge badge-primary">0 học sinh</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <h3 style="color: var(--primary); margin: 0;">Danh Sách Tài Khoản Học Sinh & Thống Kê Thi Thử</h3>
+            <span id="admin-user-count" class="badge badge-primary">0 học sinh</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="btn-batch-delete-users" class="btn btn-outline btn-sm" onclick="adminManager.deleteSelectedUsers()" style="color: #dc2626; border-color: #fca5a5; font-weight: 600;" title="Chỉ xóa những tài khoản có đánh dấu check">
+              🗑️ Xóa Tài Khoản Đã Chọn (<span id="selected-users-count">0</span>)
+            </button>
+          </div>
         </div>
 
         <div style="overflow-x: auto;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
             <thead>
               <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left;">
+                <th style="padding: 0.75rem 0.5rem; text-align: center; width: 40px;">
+                  <input type="checkbox" id="check-all-users" onchange="adminManager.toggleAllUsers(this.checked)" title="Chọn tất cả tài khoản">
+                </th>
                 <th style="padding: 0.75rem 0.5rem;">Tên Đăng Nhập</th>
                 <th style="padding: 0.75rem 0.5rem;">Họ Và Tên</th>
                 <th style="padding: 0.75rem 0.5rem;">Lớp / Trường</th>
@@ -662,7 +745,7 @@
             </thead>
             <tbody id="admin-users-table-body">
               <tr>
-                <td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải danh sách học sinh...</td>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải danh sách học sinh...</td>
               </tr>
             </tbody>
           </table>
@@ -677,14 +760,14 @@
             <small style="color: #64748b;">Toàn bộ bài thi của học sinh được sắp xếp theo tỷ lệ phần trăm và điểm số thực tế để ban quản lý giám sát</small>
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button id="btn-batch-delete-submissions" class="btn btn-outline btn-sm" onclick="adminManager.deleteSelectedSubmissions()" style="color: #dc2626; border-color: #fca5a5; font-size: 0.85rem; font-weight: 600;" title="Chỉ xóa những bài thi có đánh dấu check">
+              🗑️ Xóa Bài Thi Đã Chọn (<span id="selected-subs-count">0</span>)
+            </button>
             <button class="btn btn-outline btn-sm" onclick="adminManager.copyLeaderboard()" style="font-size: 0.85rem;" title="Sao chép toàn bộ bảng xếp hạng để dán sang Excel, Word">
               📋 Sao Chép Bảng Điểm
             </button>
             <button class="btn btn-outline btn-sm" onclick="adminManager.exportLeaderboardCSV()" style="font-size: 0.85rem;" title="Tải file Excel .CSV có dấu tiếng Việt">
               📥 Xuất File Excel
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="adminManager.deleteAllSubmissions()" style="font-size: 0.85rem; color: #dc2626; border-color: #fca5a5;" title="Xóa toàn bộ bài thi để bắt đầu kỳ thi mới">
-              🗑️ Xóa Tất Cả Bài Thi
             </button>
           </div>
         </div>
@@ -693,6 +776,9 @@
           <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
             <thead>
               <tr style="background: #eef2ff; border-bottom: 2px solid #c7d2fe; text-align: left;">
+                <th style="padding: 0.75rem 0.5rem; text-align: center; width: 40px;">
+                  <input type="checkbox" id="check-all-submissions" onchange="adminManager.toggleAllSubmissions(this.checked)" title="Chọn tất cả bài thi">
+                </th>
                 <th style="padding: 0.75rem 0.5rem; text-align: center;">Hạng</th>
                 <th style="padding: 0.75rem 0.5rem;">Thí Sinh / Học Sinh</th>
                 <th style="padding: 0.75rem 0.5rem;">Lớp - Trường</th>
@@ -706,7 +792,7 @@
             </thead>
             <tbody id="admin-leaderboard-table-body">
               <tr>
-                <td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải bảng xếp hạng...</td>
+                <td colspan="10" style="text-align: center; padding: 2rem; color: #94a3b8;">Đang tải bảng xếp hạng...</td>
               </tr>
             </tbody>
           </table>
@@ -854,9 +940,9 @@
   </div>
 
   <!-- JavaScript Modules -->
-  <script src="/js/app.js?v=2026.11"></script>
-  <script src="/js/exam.js?v=2026.11"></script>
-  <script src="/js/generator.js?v=2026.11"></script>
-  <script src="/js/analytics.js?v=2026.11"></script>
+  <script src="/js/app.js?v=2026.11.26"></script>
+  <script src="/js/analytics.js?v=2026.11.26"></script>
+  <script src="/js/exam.js?v=2026.11.26"></script>
+  <script src="/js/generator.js?v=2026.11.26"></script>
 </body>
 </html>

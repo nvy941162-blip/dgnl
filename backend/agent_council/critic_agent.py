@@ -1,4 +1,119 @@
+import re
 from typing import Dict, Any, Tuple
+
+def normalize_question_item(q: Dict[str, Any], default_type: str = "multiple_choice") -> Dict[str, Any]:
+    """Chuẩn hóa cấu trúc câu hỏi đảm bảo options và tf_statements luôn có đủ 4 phương án chuẩn và không chứa tag mã đề thừa"""
+    item = dict(q)
+    q_type = item.get("question_type") or default_type
+    item["question_type"] = q_type
+
+    # Loại bỏ tuyệt đối các hậu tố rác như (Mã đề #123), [Biến thể 1], [Đề số 2]
+    raw_prompt = str(item.get("prompt") or "")
+    clean_p = re.sub(r'\s*\((?:Mã đề|Đề số)\s*#?\d+\)', '', raw_prompt, flags=re.IGNORECASE)
+    clean_p = re.sub(r'\s*\[(?:Biến thể|Đề số|Mã đề)\s*#?\d+\]', '', clean_p, flags=re.IGNORECASE)
+    item["prompt"] = clean_p.strip()
+
+    # 1. Chuẩn hóa options cho multiple_choice
+    if q_type == "multiple_choice":
+        raw_opts = item.get("options") or {}
+        clean_opts = {}
+        if isinstance(raw_opts, list):
+            letters = ["A", "B", "C", "D"]
+            for idx, opt_val in enumerate(raw_opts[:4]):
+                val_str = str(opt_val).strip()
+                m = re.match(r'^[A-Da-d][.)]\s*(.*)$', val_str)
+                if m:
+                    val_str = m.group(1).strip()
+                clean_opts[letters[idx]] = val_str
+        elif isinstance(raw_opts, dict):
+            for k in ["A", "B", "C", "D"]:
+                val = raw_opts.get(k) if raw_opts.get(k) is not None else raw_opts.get(k.lower())
+                clean_opts[k] = str(val).strip() if val is not None else ""
+        
+        for k in ["A", "B", "C", "D"]:
+            if not clean_opts.get(k):
+                clean_opts[k] = f"Phương án {k}"
+        item["options"] = clean_opts
+
+        ans = str(item.get("correct_answer", "A")).strip().upper()
+        if len(ans) > 1 and ans[0] in ["A", "B", "C", "D"] and (ans[1] in [".", ")", " "]):
+            ans = ans[0]
+        elif ans not in ["A", "B", "C", "D"]:
+            matched = False
+            for k, v in clean_opts.items():
+                if v.strip().lower() == ans.strip().lower():
+                    ans = k
+                    matched = True
+                    break
+            if not matched:
+                ans = "A"
+        item["correct_answer"] = ans
+
+    # 2. Chuẩn hóa tf_statements cho true_false
+    elif q_type == "true_false":
+        raw_stmts = item.get("tf_statements") or {}
+        clean_stmts = {}
+        clean_correct = {}
+
+        if isinstance(raw_stmts, list):
+            letters = ["a", "b", "c", "d"]
+            for idx, stmt in enumerate(raw_stmts[:4]):
+                k = letters[idx]
+                if isinstance(stmt, dict):
+                    stmt_id = stmt.get("id", k).lower()
+                    stmt_text = stmt.get("text") or stmt.get("statement") or str(stmt)
+                    is_c = stmt.get("correct")
+                    clean_stmts[stmt_id] = str(stmt_text).strip()
+                    if is_c is not None:
+                        clean_correct[stmt_id] = "Đ" if is_c in [True, 1, "Đ", "D", "true", "True"] else "S"
+                else:
+                    text_str = str(stmt).strip()
+                    m = re.match(r'^[a-da-d][.)]\s*(.*)$', text_str)
+                    if m:
+                        text_str = m.group(1).strip()
+                    clean_stmts[k] = text_str
+        elif isinstance(raw_stmts, dict):
+            for k in ["a", "b", "c", "d"]:
+                clean_stmts[k] = str(raw_stmts.get(k) or raw_stmts.get(k.upper()) or "").strip()
+
+        for k in ["a", "b", "c", "d"]:
+            if not clean_stmts.get(k):
+                clean_stmts[k] = f"Mệnh đề {k}"
+        item["tf_statements"] = clean_stmts
+
+        raw_c = item.get("correct_answer")
+        if isinstance(raw_c, dict):
+            for k in ["a", "b", "c", "d"]:
+                v = raw_c.get(k) if raw_c.get(k) is not None else raw_c.get(k.upper())
+                clean_correct[k] = "Đ" if v in [True, 1, "Đ", "D", "true", "True"] else "S"
+        elif not clean_correct:
+            clean_correct = {"a": "Đ", "b": "S", "c": "Đ", "d": "S"}
+        item["correct_answer"] = clean_correct
+
+    # 3. Chuẩn hóa cho short_answer và fill_in_the_blank
+    elif q_type in ["short_answer", "fill_in_the_blank", "fill_blank"]:
+        raw_ans = item.get("correct_answer")
+        if raw_ans is None or str(raw_ans).strip() == "":
+            item["correct_answer"] = "1"
+        else:
+            item["correct_answer"] = str(raw_ans).strip()
+        
+        # Đảm bảo accepted_answers là list
+        raw_acc = item.get("accepted_answers")
+        if not isinstance(raw_acc, list):
+            item["accepted_answers"] = [item["correct_answer"]]
+        elif item["correct_answer"] not in raw_acc:
+            item["accepted_answers"].insert(0, item["correct_answer"])
+
+    # 4. Chuẩn hóa cho essay
+    elif q_type == "essay":
+        if not item.get("correct_answer"):
+            item["correct_answer"] = item.get("explanation") or "Dàn ý bài làm và hướng dẫn chấm chi tiết."
+
+    if not item.get("difficulty"):
+        item["difficulty"] = "medium"
+
+    return item
 
 class CriticAgent:
     """
@@ -19,12 +134,13 @@ class CriticAgent:
         Thẩm định câu hỏi trắc nghiệm hoặc các dạng câu hỏi khác (true_false, fill_in_the_blank, essay).
         Trả về: (passed, refined_question, evaluation_report)
         """
+        question = normalize_question_item(question)
         q_type = question.get("question_type", "multiple_choice")
         prompt = str(question.get("prompt", "")).strip()
         explanation = str(question.get("explanation", "")).strip()
 
         # Xử lý các dạng câu hỏi không phải trắc nghiệm 4 lựa chọn đơn
-        if q_type in ["true_false", "fill_in_the_blank", "fill_blank", "essay"]:
+        if q_type in ["true_false", "fill_in_the_blank", "fill_blank", "short_answer", "essay"]:
             correct_ans = question.get("correct_answer")
             has_ans = correct_ans is not None and (not isinstance(correct_ans, str) or correct_ans.strip() != "")
             passed = bool(prompt and has_ans)
@@ -40,7 +156,8 @@ class CriticAgent:
             return passed, refined_question, evaluation_report
 
         # Trắc nghiệm 4 lựa chọn (multiple_choice)
-        options = question.get("options", {})
+        raw_options = question.get("options")
+        options = raw_options if isinstance(raw_options, dict) else {}
         raw_ans = question.get("correct_answer", "")
         correct_ans = str(raw_ans).strip().upper() if isinstance(raw_ans, (str, int)) else ""
 
