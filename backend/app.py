@@ -96,8 +96,14 @@ def seed_benchmark_exam():
                 )
                 db.add(spt_db)
                 print(f"Successfully seeded SPT exam: {spt['title']}")
+            else:
+                existing_spt.data_json = json.dumps(propagate_passages(spt["questions"]), ensure_ascii=False)
 
         db.commit()
+
+        # Tự động đồng bộ các hình vẽ và biểu đồ khoa học kỹ thuật
+        from backend.exam_engine.update_db_diagrams import apply_diagrams_to_db
+        apply_diagrams_to_db()
     except Exception as e:
         print(f"Error seeding exams: {e}")
         db.rollback()
@@ -122,7 +128,7 @@ class SubmitExamRequest(BaseModel):
     candidate_name: Optional[str] = "Thí sinh ĐGNL"
     user_id: Optional[str] = None
     answers: Dict[str, Any] # { "1": "A", "17": {"a": "Đ", ...}, ... }
-    time_spent_seconds: int
+    time_spent_seconds: Optional[int] = 0
 
 class GenerateAgentRequest(BaseModel):
     topic: str
@@ -143,6 +149,12 @@ class SaveSettingsRequest(BaseModel):
     gemini_api_keys: Optional[str] = None
     gemini_model: Optional[str] = None
     openai_model: Optional[str] = None
+
+class BatchDeleteUsersRequest(BaseModel):
+    user_ids: List[str]
+
+class BatchDeleteSubmissionsRequest(BaseModel):
+    submission_ids: List[str]
 
 # --- API Endpoints ---
 
@@ -282,6 +294,22 @@ def admin_delete_user(user_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success", "message": f"Đã xóa học sinh '{u.full_name}' và dữ liệu bài thi liên quan!"}
 
+@app.post("/api/admin/users/batch-delete")
+def admin_batch_delete_users(req: BatchDeleteUsersRequest, db: Session = Depends(get_db)):
+    """Admin xóa nhiều tài khoản học sinh đã chọn cùng lúc"""
+    if not req.user_ids:
+        return {"status": "success", "message": "Không có tài khoản nào được chọn.", "deleted_count": 0}
+
+    users = db.query(UserModel).filter(UserModel.id.in_(req.user_ids)).all()
+    deleted_count = 0
+    for u in users:
+        if u.role != "admin" and u.username != "admin":
+            db.query(SubmissionModel).filter(SubmissionModel.user_id == u.id).delete()
+            db.delete(u)
+            deleted_count += 1
+    db.commit()
+    return {"status": "success", "message": f"Đã xóa thành công {deleted_count} tài khoản học sinh đã chọn!", "deleted_count": deleted_count}
+
 @app.post("/api/admin/users/{user_id}/reset-password")
 def admin_reset_password(user_id: str, new_pass: str = Body(..., embed=True), db: Session = Depends(get_db)):
     """Admin đặt lại mật khẩu cho học sinh"""
@@ -350,6 +378,16 @@ def admin_delete_single_submission(submission_id: str, db: Session = Depends(get
     db.delete(sub)
     db.commit()
     return {"status": "success", "message": f"Đã xóa bài làm của thí sinh '{candidate}' thành công!"}
+
+@app.post("/api/admin/submissions/batch-delete")
+def admin_batch_delete_submissions(req: BatchDeleteSubmissionsRequest, db: Session = Depends(get_db)):
+    """Admin xóa nhiều bài làm đã chọn cùng lúc"""
+    if not req.submission_ids:
+        return {"status": "success", "message": "Không có bài làm nào được chọn.", "deleted_count": 0}
+
+    deleted_count = db.query(SubmissionModel).filter(SubmissionModel.id.in_(req.submission_ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"status": "success", "message": f"Đã xóa thành công {deleted_count} bài làm đã chọn!", "deleted_count": deleted_count}
 
 @app.delete("/api/admin/submissions")
 def admin_delete_all_submissions(db: Session = Depends(get_db)):
@@ -517,16 +555,20 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
         max_score=exam_max_score
     )
     
-    # Phân tích năng lực chuyên sâu (Pandas & Scipy)
+    # Phân tích năng lực chuyên sâu (Pandas & Scipy & IRT Item Response Theory)
     competency_analysis = calculate_competency_insights(
         grade_report["domain_stats"], 
         grade_report["total_score"],
         max_score=exam_max_score,
-        is_spt=grade_report.get("is_spt", False)
+        is_spt=grade_report.get("is_spt", False),
+        detailed_results=grade_report.get("detailed_results", [])
     )
     
     # Vẽ Biểu đồ Mạng nhện Radar Chart (Matplotlib)
-    radar_image_base64 = generate_radar_chart_base64(grade_report["domain_stats"])
+    radar_image_base64 = generate_radar_chart_base64(
+        grade_report["domain_stats"], 
+        is_spt=grade_report.get("is_spt", False)
+    )
 
     # Sinh lời khuyên ôn tập cá nhân hóa từ Chuyên gia AI
     ai_advice = generate_personalized_advice(
@@ -572,6 +614,79 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
         "radar_image": radar_image_base64,
         "ai_advice": ai_advice
     }
+
+def format_submission_for_analytics(sub: SubmissionModel, db: Session):
+    results = json.loads(sub.results_json) if sub.results_json else {}
+    radar_data = json.loads(sub.radar_data_json) if sub.radar_data_json else {}
+    competency = radar_data.get("competency", {})
+    radar_image = radar_data.get("radar_image", "")
+    
+    # If radar_image is missing or empty, regenerate dynamically
+    if not radar_image and "domain_stats" in results:
+        try:
+            radar_image = generate_radar_chart_base64(
+                results["domain_stats"],
+                is_spt=results.get("is_spt", False)
+            )
+        except Exception as e:
+            print(f"Error generating radar image on format: {e}")
+
+    # If competency is missing, recalculate it
+    if not competency and "domain_stats" in results:
+        try:
+            exam = db.query(ExamModel).filter(ExamModel.id == sub.exam_id).first()
+            exam_max = exam.max_score if exam and exam.max_score else (10.0 if results.get("is_spt") else 1200.0)
+            competency = calculate_competency_insights(
+                results["domain_stats"],
+                sub.total_score,
+                max_score=exam_max,
+                is_spt=results.get("is_spt", False),
+                detailed_results=results.get("detailed_results", [])
+            )
+        except Exception as e:
+            print(f"Error generating competency on format: {e}")
+
+    exam = db.query(ExamModel).filter(ExamModel.id == sub.exam_id).first()
+    exam_title = exam.title if exam else "Bài thi ĐGNL"
+
+    return {
+        "submission_id": sub.id,
+        "exam_id": sub.exam_id,
+        "exam_title": exam_title,
+        "candidate_name": sub.candidate_name,
+        "time_spent_seconds": sub.time_spent_seconds,
+        "grade_report": results,
+        "competency_analysis": competency,
+        "radar_image": radar_image,
+        "ai_advice": sub.ai_advice,
+        "submitted_at": sub.submitted_at.strftime("%d/%m/%Y %H:%M") if sub.submitted_at else ""
+    }
+
+@app.get("/api/submissions/latest")
+def get_latest_submission(user_id: Optional[str] = None, candidate_name: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(SubmissionModel)
+    sub = None
+    if user_id:
+        sub = query.filter(SubmissionModel.user_id == user_id).order_by(SubmissionModel.submitted_at.desc()).first()
+    elif candidate_name:
+        sub = query.filter(SubmissionModel.candidate_name == candidate_name).order_by(SubmissionModel.submitted_at.desc()).first()
+
+    # Fallback to latest overall submission in the system if no user-specific submission found
+    if not sub:
+        sub = db.query(SubmissionModel).order_by(SubmissionModel.submitted_at.desc()).first()
+
+    if not sub:
+        return {"has_submission": False, "data": None}
+
+    formatted = format_submission_for_analytics(sub, db)
+    return {"has_submission": True, "data": formatted}
+
+@app.get("/api/submissions/{submission_id}/analytics")
+def get_submission_analytics(submission_id: str, db: Session = Depends(get_db)):
+    sub = db.query(SubmissionModel).filter(SubmissionModel.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Không tìm thấy kết quả làm bài.")
+    return format_submission_for_analytics(sub, db)
 
 @app.get("/api/submissions/{submission_id}")
 def get_submission(submission_id: str, user_id: Optional[str] = None, db: Session = Depends(get_db)):
@@ -977,45 +1092,12 @@ def generate_full_exam(req: GenerateFullExamRequest, db: Session = Depends(get_d
     mode = (req.mode or "vact_full").strip()
     title_raw = (req.title or "").strip()
     theme_raw = (req.theme or "").strip()
-    title_lower = title_raw.lower()
-    theme_lower = theme_raw.lower()
-
-    # Nhận diện thông minh nếu mode chưa được gửi chuẩn hoặc bị mặc định vact_full
-    if mode == "vact_full":
-        # Toán học
-        if any(k in title_lower or k in theme_lower for k in ["toán", "đại số", "giải tích", "hình học", "lượng giác", "xác suất", "tích phân", "đạo hàm", "spt_math"]):
-            mode = "spt_math"
-        # Tiếng Anh
-        elif any(k in title_lower or k in theme_lower for k in ["tiếng anh", "english", "lexico", "reading comprehension", "word formation", "spt_english"]):
-            mode = "spt_english"
-        # Hóa học
-        elif any(k in title_lower or k in theme_lower for k in ["hóa", "chemistry", "hữu cơ", "vô cơ", "este", "phản ứng", "cân bằng hóa học", "spt_chemistry"]):
-            mode = "spt_chemistry"
-        # Địa lí
-        elif any(k in title_lower or k in theme_lower for k in ["địa", "geography", "dân cư", "vùng kinh tế", "địa hình", "khí hậu", "spt_geography"]):
-            mode = "spt_geography"
-        # Lịch sử
-        elif any(k in title_lower or k in theme_lower for k in ["lịch sử", "history", "cách mạng", "chiến dịch", "kháng chiến", "hiệp định", "sử", "spt_history"]):
-            mode = "spt_history"
-        # GDKT & Pháp luật
-        elif any(k in title_lower or k in theme_lower for k in ["gdkt", "pháp luật", "kinh tế thị trường", "công dân", "hiến pháp", "spt_civics"]):
-            mode = "spt_civics"
-        # Công nghệ Công nghiệp
-        elif any(k in title_lower or k in theme_lower for k in ["công nghiệp", "cơ khí", "mạch điện", "bản vẽ", "tự động hóa", "công nghệ cn", "spt_tech_ind"]):
-            mode = "spt_tech_ind"
-        # Công nghệ Nông nghiệp
-        elif any(k in title_lower or k in theme_lower for k in ["nông nghiệp", "lâm nghiệp", "thủy sản", "trồng trọt", "chăn nuôi", "công nghệ nn", "spt_tech_agr"]):
-            mode = "spt_tech_agr"
 
     from backend.agent_council.full_exam_generator import SPT_CONFIGS, full_exam_generator
 
     if mode in SPT_CONFIGS:
         cfg = SPT_CONFIGS[mode]
-        # Nếu tiêu đề bị dính chữ "ĐGNL Số..." do cache cũ, tự động đổi về tiêu đề chuẩn của môn SPT
-        if not title_raw or "đgnl số" in title_lower or "đề thi đgnl" in title_lower:
-            final_title = f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {cfg['name']}"
-        else:
-            final_title = title_raw
+        final_title = title_raw or f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {cfg['name']}"
     else:
         mode = "vact_full"
         final_title = resolve_next_exam_title(title_raw, db)

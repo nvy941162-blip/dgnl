@@ -259,10 +259,25 @@ const app = {
     const modeInput = document.getElementById('full-exam-mode-input');
     if (modeInput) modeInput.value = modeKey;
 
+    // Reset sạch sẽ trạng thái & Cache của Studio tạo đề
+    const readyBanner = document.getElementById('full-exam-ready-banner');
+    if (readyBanner) readyBanner.style.display = 'none';
+
+    const progressBox = document.getElementById('full-exam-progress-box');
+    if (progressBox) progressBox.style.display = 'none';
+
     if (typeof generatorStudio !== 'undefined') {
       generatorStudio.currentMode = modeKey;
+      generatorStudio.isGenerating120 = false;
+      if (generatorStudio.pollTimer) {
+        clearInterval(generatorStudio.pollTimer);
+        generatorStudio.pollTimer = null;
+      }
       if (typeof generatorStudio.updateRecentUI === 'function') {
         generatorStudio.updateRecentUI();
+      }
+      if (modeKey === 'vact_full' && typeof generatorStudio.loadNextExamTitle === 'function') {
+        generatorStudio.loadNextExamTitle();
       }
     }
 
@@ -362,7 +377,10 @@ const app = {
     if (cfg.title && titleInput) titleInput.value = cfg.title;
     if (cfg.theme && themeInput) themeInput.value = cfg.theme;
     if (statusText) statusText.innerText = cfg.desc;
-    if (startBtn && cfg.btnText) startBtn.innerHTML = cfg.btnText;
+    if (startBtn) {
+      startBtn.disabled = false;
+      if (cfg.btnText) startBtn.innerHTML = cfg.btnText;
+    }
     if (badge && cfg.badge) badge.innerText = cfg.badge;
     if (heroTitle && cfg.heroTitle) heroTitle.innerText = cfg.heroTitle;
     if (heroDesc && cfg.heroDesc) heroDesc.innerText = cfg.heroDesc;
@@ -407,16 +425,17 @@ const app = {
     if (!text) return '';
     let str = String(text);
 
-    // Tách chuỗi theo các khối đã có dấu $ (ví dụ ... hoặc $...$)
+    // Tách chuỗi theo các khối đã có dấu $ (ví dụ $$...$$ hoặc $...$)
     // để không can thiệp làm hỏng các công thức đã bọc chuẩn
     const tokens = str.split(/(\$\$[\s\S]*?\$\$|\$[^\$\n]+?\$)/g);
     
     // Pattern tìm các công thức LaTeX trần chưa được bọc dấu $
-    const nakedPattern = /(\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)))/g;
+    // Bao gồm: số + \text{...}, \frac, \sqrt, \int, \log, \vec, \lim, \sum, \text{...}, ký hiệu hy lạp, quan hệ toán học
+    const nakedPattern = /(\b\d+(?:[.,]\d+)?\s*\\text\{[^{}]+\}(?:\^[^{}\s]+)?|\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)|text\{[^{}]+\}(?:\^[^{}\s]+)?|(?:alpha|beta|gamma|delta|Delta|lambda|Lambda|mu|pi|rho|sigma|omega|Omega|infty|approx|ne|le|ge|pm|times|cdot|perp|parallel|angle)\b))/g;
 
     const parts = tokens.map(token => {
       if (!token) return '';
-      // Nếu đã nằm trong $...$ hoặc ..., giữ nguyên 100%
+      // Nếu đã nằm trong $...$ hoặc $$...$$, giữ nguyên 100%
       if (token.startsWith('$') && token.endsWith('$')) {
         return token;
       }
@@ -451,6 +470,10 @@ const app = {
     } else if (tabName === 'generator') {
       if (typeof generatorStudio !== 'undefined' && generatorStudio.loadNextExamTitle) {
         generatorStudio.loadNextExamTitle();
+      }
+    } else if (tabName === 'analytics') {
+      if (typeof analyticsView !== 'undefined' && analyticsView.loadLatest) {
+        analyticsView.loadLatest();
       }
     } else if (tabName === 'settings') {
       this.loadSettingsStatus();
@@ -1123,8 +1146,12 @@ const adminManager = {
       const tbody = document.getElementById('admin-users-table-body');
       if (!tbody) return;
 
+      const masterCheck = document.getElementById('check-all-users');
+      if (masterCheck) masterCheck.checked = false;
+      this.onUserCheckChange();
+
       if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có tài khoản học sinh nào.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có tài khoản học sinh nào.</td></tr>';
         return;
       }
 
@@ -1143,8 +1170,11 @@ const adminManager = {
           </div>
         `;
 
+        const checkCol = isAdmin ? '' : `<input type="checkbox" class="user-select-check" value="${u.id}" onchange="adminManager.onUserCheckChange()">`;
+
         return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">${checkCol}</td>
             <td style="padding: 0.75rem 0.5rem;">
               <strong>${u.username}</strong>
               <div style="margin-top: 2px;">${roleTag}</div>
@@ -1164,6 +1194,54 @@ const adminManager = {
     }
   },
 
+  toggleAllUsers(checked) {
+    const checks = document.querySelectorAll('.user-select-check');
+    checks.forEach(c => c.checked = checked);
+    this.onUserCheckChange();
+  },
+
+  onUserCheckChange() {
+    const checks = document.querySelectorAll('.user-select-check:checked');
+    const count = checks.length;
+    const btn = document.getElementById('btn-batch-delete-users');
+    const cntEl = document.getElementById('selected-users-count');
+    if (cntEl) cntEl.innerText = count;
+    if (btn) {
+      btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+  },
+
+  async deleteSelectedUsers() {
+    const checks = document.querySelectorAll('.user-select-check:checked');
+    const userIds = Array.from(checks).map(c => c.value);
+    if (userIds.length === 0) {
+      alert("Vui lòng chọn ít nhất một tài khoản để xóa.");
+      return;
+    }
+
+    if (!confirm(`Bạn có chắc chắn muốn XÓA ${userIds.length} tài khoản đã chọn cùng toàn bộ dữ liệu làm bài của họ không?\nThao tác này không thể hoàn tác!`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/users/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: userIds })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Lỗi xóa danh sách tài khoản.");
+      alert(data.message || `Đã xóa ${data.deleted_count} tài khoản thành công!`);
+      this.loadUsers();
+      this.loadLeaderboard();
+      if (typeof authManager !== 'undefined' && authManager.fetchDemoStudents) {
+        authManager.fetchDemoStudents();
+      }
+    } catch (err) {
+      alert("Lỗi xóa tài khoản hàng loạt: " + err.message);
+    }
+  },
+
   async deleteUser(userId, fullName) {
     if (!confirm(`Bạn có chắc chắn muốn XÓA học sinh '${fullName}' và toàn bộ lịch sử thi cử liên quan không?`)) return;
     try {
@@ -1172,6 +1250,7 @@ const adminManager = {
       if (!res.ok) throw new Error(data.detail || "Không thể xóa học sinh.");
       alert(data.message);
       this.loadUsers();
+      this.loadLeaderboard();
       authManager.fetchDemoStudents();
     } catch (err) {
       alert("Lỗi xóa học sinh: " + err.message);
@@ -1205,8 +1284,12 @@ const adminManager = {
       const tbody = document.getElementById('admin-leaderboard-table-body');
       if (!tbody) return;
 
+      const masterCheck = document.getElementById('check-all-submissions');
+      if (masterCheck) masterCheck.checked = false;
+      this.onSubCheckChange();
+
       if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có bài thi nào được nộp trong hệ thống.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 2rem; color: #94a3b8;">Chưa có bài thi nào được nộp trong hệ thống.</td></tr>';
         return;
       }
 
@@ -1220,6 +1303,9 @@ const adminManager = {
 
         return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">
+              <input type="checkbox" class="sub-select-check" value="${r.id}" onchange="adminManager.onSubCheckChange()">
+            </td>
             <td style="padding: 0.75rem 0.5rem; text-align: center;">${rankBadge}</td>
             <td style="padding: 0.75rem 0.5rem;">
               <strong style="color: #1e293b;">${r.candidate_name}</strong>
@@ -1248,6 +1334,51 @@ const adminManager = {
 
     } catch (err) {
       console.warn("Lỗi tải Leaderboard: " + err.message);
+    }
+  },
+
+  toggleAllSubmissions(checked) {
+    const checks = document.querySelectorAll('.sub-select-check');
+    checks.forEach(c => c.checked = checked);
+    this.onSubCheckChange();
+  },
+
+  onSubCheckChange() {
+    const checks = document.querySelectorAll('.sub-select-check:checked');
+    const count = checks.length;
+    const btn = document.getElementById('btn-batch-delete-submissions');
+    const cntEl = document.getElementById('selected-subs-count');
+    if (cntEl) cntEl.innerText = count;
+    if (btn) {
+      btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+  },
+
+  async deleteSelectedSubmissions() {
+    const checks = document.querySelectorAll('.sub-select-check:checked');
+    const subIds = Array.from(checks).map(c => c.value);
+    if (subIds.length === 0) {
+      alert("Vui lòng chọn ít nhất một bài thi để xóa.");
+      return;
+    }
+
+    if (!confirm(`Bạn có chắc chắn muốn XÓA ${subIds.length} bài thi đã chọn không?\nThao tác này không thể hoàn tác!`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/submissions/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ submission_ids: subIds })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Lỗi xóa danh sách bài thi.");
+      alert(data.message || `Đã xóa ${data.deleted_count} bài thi thành công!`);
+      this.loadLeaderboard();
+      this.loadUsers();
+    } catch (err) {
+      alert("Lỗi xóa bài thi hàng loạt: " + err.message);
     }
   },
 
@@ -1335,6 +1466,16 @@ const adminManager = {
     document.body.removeChild(link);
   }
 };
+
+// Cảnh báo ngăn học sinh vô tình tải lại hoặc thoát trình duyệt khi đang làm bài thi
+window.addEventListener('beforeunload', (e) => {
+  if (window.examRunner && typeof examRunner.isExamInProgress === 'function' && examRunner.isExamInProgress()) {
+    const warningMsg = 'Bạn đang trong phòng thi! Toàn bộ tiến trình làm bài có thể bị gián đoạn nếu bạn rời đi!';
+    e.preventDefault();
+    e.returnValue = warningMsg;
+    return warningMsg;
+  }
+});
 
 window.authManager = authManager;
 

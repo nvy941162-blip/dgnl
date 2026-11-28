@@ -8,8 +8,16 @@ const examRunner = {
   timerInterval: null,
   examStartTime: null,
 
+  isExamInProgress() {
+    return false; // Tạm thời bỏ tính năng khóa phòng thi theo yêu cầu của bạn
+  },
+
   async startBenchmarkExam() {
     await this.loadAndStartExam("dgnl_benchmark_standard_2025");
+  },
+
+  async startSPTExam(subjectId) {
+    await this.loadAndStartExam(`spt_sample_${subjectId}`);
   },
 
   async loadAndStartExam(examId) {
@@ -143,11 +151,11 @@ const examRunner = {
     const groups = [];
 
     if (isSpt) {
-      // SPT có 4 phần: Trắc nghiệm, Đúng/Sai, Điền đáp số, Tự luận
-      const p1 = questions.filter(q => q.section_id === 'part_1' || q.question_type === 'multiple_choice');
-      const p2 = questions.filter(q => q.section_id === 'part_2' || q.question_type === 'true_false');
-      const p3 = questions.filter(q => q.section_id === 'part_3' || q.question_type === 'short_answer');
-      const p4 = questions.filter(q => q.section_id === 'part_4' || q.question_type === 'essay');
+      // Phân nhóm không trùng lặp dựa trên question_type
+      const p1 = questions.filter(q => q.question_type === 'multiple_choice' || (!q.question_type && q.section_id !== 'part_2' && q.section_id !== 'part_3' && q.section_id !== 'part_4'));
+      const p2 = questions.filter(q => q.question_type === 'true_false');
+      const p3 = questions.filter(q => q.question_type === 'short_answer');
+      const p4 = questions.filter(q => q.question_type === 'essay');
 
       if (p1.length > 0) groups.push({ title: `Phần I: Trắc nghiệm (${p1.length} câu)`, questions: p1 });
       if (p2.length > 0) groups.push({ title: `Phần II: Đúng / Sai (${p2.length} câu)`, questions: p2 });
@@ -279,9 +287,15 @@ const examRunner = {
       chartContainer.style.display = 'block';
       chartImg.src = imageSource;
       if (q.domain === 'geography') {
-        contextTag.innerText = "Bản đồ / Sơ đồ Địa lý";
+        contextTag.innerText = "Biểu đồ Địa lý & Khí hậu";
       } else if (q.domain === 'data_analysis') {
-        contextTag.innerText = "Biểu đồ phân tích số liệu";
+        contextTag.innerText = "Biểu đồ Phân tích Số liệu";
+      } else if (q.domain === 'tech_industry') {
+        contextTag.innerText = "Bản vẽ Kỹ thuật & Hình chiếu";
+      } else if (q.domain === 'tech_agriculture') {
+        contextTag.innerText = "Sơ đồ Công nghệ Nông nghiệp";
+      } else if (q.domain === 'math') {
+        contextTag.innerText = "Đồ thị Hàm số & Hình học không gian";
       } else {
         contextTag.innerText = "Hình ảnh / Sơ đồ minh họa";
       }
@@ -307,8 +321,9 @@ const examRunner = {
     if (qType === 'multiple_choice') {
       // DẠNG 1: TRẮC NGHIỆM 4 PHƯƠNG ÁN (A, B, C, D)
       const selectedOption = this.userAnswers[qNum];
+      const opts = this.normalizeOptions(q.options);
       ['A', 'B', 'C', 'D'].forEach(optKey => {
-        const optText = q.options ? q.options[optKey] : '';
+        const optText = opts[optKey] || '';
         if (!optText) return;
 
         const optItem = document.createElement('div');
@@ -327,7 +342,7 @@ const examRunner = {
       });
     } else if (qType === 'true_false') {
       // DẠNG 2: TRẮC NGHIỆM ĐÚNG / SAI 4 MỆNH ĐỀ (a, b, c, d)
-      const stmts = q.tf_statements || {};
+      const stmts = this.normalizeTfStatements(q.tf_statements);
       const currentAns = (this.userAnswers[qNum] && typeof this.userAnswers[qNum] === 'object') ? this.userAnswers[qNum] : {};
 
       const tableWrapper = document.createElement('div');
@@ -530,10 +545,18 @@ const examRunner = {
       const submissionResult = await res.json();
       
       this.clearSession();
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      this.examData = null; // Mở khóa phòng thi sau khi đã nộp bài thành công
       app.latestSubmission = submissionResult;
       
       // Chuyển sang màn hình Báo cáo Phân tích Năng lực
-      analyticsView.renderReport(submissionResult);
+      const repView = window.analyticsView || (typeof analyticsView !== 'undefined' ? analyticsView : null);
+      if (repView && typeof repView.renderReport === 'function') {
+        repView.renderReport(submissionResult);
+      }
       app.showTab('analytics');
     } catch (err) {
       alert("Lỗi nộp bài thi: " + err.message);
@@ -623,6 +646,66 @@ const examRunner = {
       hard: "Vận dụng",
       very_hard: "Vận dụng cao"
     };
-    return map[diff] || diff;
+    return map[diff] || diff || "Thông hiểu";
+  },
+
+  normalizeOptions(rawOptions) {
+    if (!rawOptions) return {};
+    let opts = rawOptions;
+    if (typeof opts === 'string') {
+      try { opts = JSON.parse(opts); } catch (e) { return {}; }
+    }
+    const res = {};
+    if (Array.isArray(opts)) {
+      const letters = ['A', 'B', 'C', 'D'];
+      opts.slice(0, 4).forEach((item, idx) => {
+        const key = letters[idx];
+        let str = String(item || '').trim();
+        const m = str.match(/^[A-Da-d][.)]\s*(.*)$/);
+        if (m) str = m[1];
+        res[key] = str;
+      });
+    } else if (typeof opts === 'object') {
+      ['A', 'B', 'C', 'D'].forEach(k => {
+        const val = (opts[k] !== undefined && opts[k] !== null) ? opts[k] : opts[k.toLowerCase()];
+        if (val !== undefined && val !== null) {
+          res[k] = String(val).trim();
+        }
+      });
+    }
+    return res;
+  },
+
+  normalizeTfStatements(rawStmts) {
+    if (!rawStmts) return {};
+    let stmts = rawStmts;
+    if (typeof stmts === 'string') {
+      try { stmts = JSON.parse(stmts); } catch (e) { return {}; }
+    }
+    const res = {};
+    if (Array.isArray(stmts)) {
+      const letters = ['a', 'b', 'c', 'd'];
+      stmts.slice(0, 4).forEach((item, idx) => {
+        const defaultKey = letters[idx];
+        if (typeof item === 'object' && item !== null) {
+          const key = (item.id || defaultKey).toLowerCase();
+          const text = item.text || item.statement || JSON.stringify(item);
+          res[key] = String(text).trim();
+        } else {
+          let str = String(item || '').trim();
+          const m = str.match(/^[a-da-d][.)]\s*(.*)$/);
+          if (m) str = m[1];
+          res[defaultKey] = str;
+        }
+      });
+    } else if (typeof stmts === 'object') {
+      ['a', 'b', 'c', 'd'].forEach(k => {
+        const val = (stmts[k] !== undefined && stmts[k] !== null) ? stmts[k] : stmts[k.toUpperCase()];
+        if (val !== undefined && val !== null) {
+          res[k] = String(val).trim();
+        }
+      });
+    }
+    return res;
   }
 };

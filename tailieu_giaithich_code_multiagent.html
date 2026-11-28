@@ -126,7 +126,7 @@
     <tr>
       <td><strong>backend/exam_engine/</strong><br>• <code>scoring.py</code><br>• <code>irt_engine.py</code></td>
       <td>Pandas, NumPy, SciPy, Matplotlib</td>
-      <td>Động cơ khảo thí: Chấm điểm khách quan theo hàm mũ IRT 2-PL/3-PL, phân tích năng lực đa chiều $\theta$ (Theta) và dựng biểu đồ Radar năng lực.</td>
+      <td>Động cơ khảo thí: Chấm điểm khách quan theo hàm mũ IRT 2-PL/3-PL, phân tích năng lực đa chiều &theta; (Theta) và dựng biểu đồ Radar năng lực.</td>
     </tr>
     <tr>
       <td><strong>frontend/js/</strong><br>• <code>app.js</code><br>• <code>generator.js</code><br>• <code>exam.js</code></td>
@@ -185,8 +185,12 @@ Chủ đề: {topic} | Lĩnh vực: {domain}
   <h3>Tầng 3: Thuật toán tách từ (Lexical Tokenization) và Vector Space Cosine Matching</h3>
   <p>Mã nguồn thực hiện tách từ bằng Regex <code>\b\w+\b</code> kết hợp chuyển hóa về chữ thường (lowercase normalization), sau đó tính toán khoảng cách cosine trên không gian tần suất từ vựng (Term Frequency - Vector Space Model):</p>
 
-  <div class="math-formula">
-    Cosine\_Similarity(Q, D) = \frac{\sum_{w \in Q} C(w, D)}{\sqrt{|Q|} \times \sqrt{\sum_{w \in D} [C(w, D)]^2}}
+  <div class="math-formula" style="font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 11pt; text-align: center; background: #f8fafc; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; margin: 8px 0;">
+    <span style="font-weight: bold; font-family: sans-serif; color: #1e1b4b;">Cosine_Similarity(<i>Q</i>, <i>D</i>)</span> &nbsp;=&nbsp; 
+    <span style="display: inline-block; vertical-align: middle; text-align: center;">
+      <span style="display: block; border-bottom: 1.5px solid #1e293b; padding-bottom: 2px;">&sum;<sub><i>w</i> &isin; <i>Q</i></sub> <i>C</i>(<i>w</i>, <i>D</i>)</span>
+      <span style="display: block; padding-top: 2px;">&radic;<span style="border-top: 1px solid #1e293b;">|<i>Q</i>|</span> &times; &radic;<span style="border-top: 1px solid #1e293b;">&sum;<sub><i>w</i> &isin; <i>D</i></sub> [<i>C</i>(<i>w</i>, <i>D</i>)]<sup>2</sup></span></span>
+    </span>
   </div>
 
   <div class="code-box">
@@ -247,8 +251,8 @@ top_docs = [item[1] for item in scored_docs[:top_k]]
   <div class="agent-card">
     <strong>Tác tử 4 - Ragas Quantitative Evaluator (Đo lường định lượng phi cảm tính):</strong> 
     Tính toán 2 chỉ số Ragas trước khi cho phép lưu đề thi vào cơ sở dữ liệu:
-    <br>• <strong>Faithfulness (Độ trung thực kiến thức) $\ge 85\%$:</strong> So khớp toàn bộ câu hỏi và đáp án với ngữ cảnh SGK ban đầu. Nếu phát hiện AI "bịa đặt" (hallucination) dữ liệu không có trong SGK, câu hỏi sẽ bị loại bỏ ngay lập tức.
-    <br>• <strong>Answer Relevance $\ge 90\%$:</strong> Đảm bảo câu hỏi bám sát chuẩn ma trận khảo thí ĐHQG TP.HCM / Hà Nội.
+    <br>• <strong>Faithfulness (Độ trung thực kiến thức) &ge; 85%:</strong> So khớp toàn bộ câu hỏi và đáp án với ngữ cảnh SGK ban đầu. Nếu phát hiện AI "bịa đặt" (hallucination) dữ liệu không có trong SGK, câu hỏi sẽ bị loại bỏ ngay lập tức.
+    <br>• <strong>Answer Relevance &ge; 90%:</strong> Đảm bảo câu hỏi bám sát chuẩn ma trận khảo thí ĐHQG TP.HCM / Hà Nội.
   </div>
 
   <h2>4. HẠ TẦNG KỸ THUẬT NÂNG CAO: GEMINI ROTATOR VÀ BẢO MẬT RBAC</h2>

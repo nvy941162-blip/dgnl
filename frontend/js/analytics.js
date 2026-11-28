@@ -3,6 +3,51 @@ const analyticsView = {
   currentFilter: 'all',
   submissionData: null,
 
+  async loadLatest() {
+    try {
+      const user = (typeof authManager !== 'undefined') ? authManager.currentUser : null;
+      const userId = user?.id || '';
+      const candName = user?.full_name || '';
+
+      let url = '/api/submissions/latest';
+      const params = new URLSearchParams();
+      if (userId) params.append('user_id', userId);
+      else if (candName) params.append('candidate_name', candName);
+
+      if (params.toString()) url += '?' + params.toString();
+
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.has_submission && json.data) {
+        this.renderReport(json.data);
+      } else {
+        const emptyNotice = document.getElementById('analytics-empty-notice');
+        const reportContent = document.getElementById('analytics-report-content');
+        if (emptyNotice) emptyNotice.style.display = 'block';
+        if (reportContent) reportContent.style.display = 'none';
+      }
+    } catch (err) {
+      console.error('Failed to load latest submission:', err);
+    }
+  },
+
+  async loadSubmission(submissionId) {
+    if (!submissionId) return;
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/analytics`);
+      if (!res.ok) {
+        alert('Không thể tải bài thi này.');
+        return;
+      }
+      const data = await res.json();
+      this.renderReport(data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      alert('Lỗi tải bài làm: ' + err.message);
+    }
+  },
+
   renderReport(data) {
     this.submissionData = data;
 
@@ -24,16 +69,103 @@ const analyticsView = {
     tierBadge.style.background = comp.tier_color;
     tierBadge.style.color = '#ffffff';
 
-    // 2. Subscores (400 - 300 - 500 for V-ACT)
+    // 2. Subscores (V-ACT or SPT Sections)
     const subscoresBar = document.getElementById('report-subscores-bar');
     if (subscoresBar) {
+      subscoresBar.style.display = 'flex';
       if (grade.is_spt) {
-        subscoresBar.style.display = 'none';
+        subscoresBar.innerHTML = `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần I: Trắc nghiệm</div>
+            <div class="num" style="color: #4f46e5;">${grade.sec1_score} đ</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần II: Đúng / Sai</div>
+            <div class="num" style="color: #0ea5e9;">${grade.sec2_score} đ</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần III: Điền số / Trả lời ngắn</div>
+            <div class="num" style="color: #10b981;">${grade.sec3_score} đ</div>
+          </div>
+          ${(grade.sec4_score && grade.sec4_score > 0) ? `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần IV: Tự luận</div>
+            <div class="num" style="color: #f59e0b;">${grade.sec4_score} đ</div>
+          </div>` : ''}
+        `;
       } else {
-        subscoresBar.style.display = 'flex';
-        document.getElementById('report-sec1-score').innerText = `${grade.sec1_score} / ${grade.sec1_max || 400}`;
-        document.getElementById('report-sec2-score').innerText = `${grade.sec2_score} / ${grade.sec2_max || 300}`;
-        document.getElementById('report-sec3-score').innerText = `${grade.sec3_score} / ${grade.sec3_max || 500}`;
+        subscoresBar.innerHTML = `
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 1: Ngôn ngữ</div>
+            <div class="num" style="color: #4f46e5;" id="report-sec1-score">${grade.sec1_score} / ${grade.sec1_max || 400}</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 2: Toán, Logic & Số liệu</div>
+            <div class="num" style="color: #0ea5e9;" id="report-sec2-score">${grade.sec2_score} / ${grade.sec2_max || 300}</div>
+          </div>
+          <div class="subscore-item">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Phần 3: Giải quyết vấn đề</div>
+            <div class="num" style="color: #10b981;" id="report-sec3-score">${grade.sec3_score} / ${grade.sec3_max || 500}</div>
+          </div>
+        `;
+      }
+    }
+
+    // 2.5. Báo cáo & Nhận xét Khảo thí IRT (Item Response Theory)
+    const irtData = comp.irt || {};
+    const thetaVal = (irtData.theta !== undefined && irtData.theta !== null) ? ((irtData.theta > 0 ? '+' : '') + Number(irtData.theta).toFixed(2)) : '+0.00';
+    const semVal = (irtData.sem !== undefined && irtData.sem !== null) ? `±${Number(irtData.sem).toFixed(2)}` : '±0.25';
+    const ciLower = (irtData.ci_lower !== undefined && irtData.ci_lower !== null) ? ((irtData.ci_lower > 0 ? '+' : '') + Number(irtData.ci_lower).toFixed(2)) : '-0.50';
+    const ciUpper = (irtData.ci_upper !== undefined && irtData.ci_upper !== null) ? ((irtData.ci_upper > 0 ? '+' : '') + Number(irtData.ci_upper).toFixed(2)) : '+0.50';
+
+    const thetaEl = document.getElementById('irt-theta-value');
+    if (thetaEl) thetaEl.innerText = thetaVal;
+    const semEl = document.getElementById('irt-sem-value');
+    if (semEl) semEl.innerText = semVal;
+    const ciEl = document.getElementById('irt-ci-display');
+    if (ciEl) ciEl.innerText = `Khoảng tin cậy 95%: [${ciLower}; ${ciUpper}]`;
+
+    // Bậc nhận thức
+    const cog = irtData.cognitive_stats || {};
+    const pEasy = cog.nhan_biet?.percentage ?? Math.round((grade.total_score / (grade.max_total_score || 1200)) * 100);
+    const pMed = cog.thong_hieu?.percentage ?? Math.round(pEasy * 0.9);
+    const pHard = cog.van_dung?.percentage ?? Math.round(pEasy * 0.75);
+    const pVHard = cog.van_dung_cao?.percentage ?? Math.round(pEasy * 0.6);
+
+    const easyEl = document.getElementById('cog-p-easy');
+    if (easyEl) easyEl.innerText = `${pEasy}%`;
+    const medEl = document.getElementById('cog-p-med');
+    if (medEl) medEl.innerText = `${pMed}%`;
+    const hardEl = document.getElementById('cog-p-hard');
+    if (hardEl) hardEl.innerText = `${pHard}%`;
+    const vhardEl = document.getElementById('cog-p-vhard');
+    if (vhardEl) vhardEl.innerText = `${pVHard}%`;
+
+    const domEl = document.getElementById('irt-cognitive-dominant');
+    if (domEl) {
+      if (pVHard >= 60 || (irtData.theta && irtData.theta >= 1.5)) {
+        domEl.innerText = "Vận Dụng Cao (Tư Duy Đột Phá)";
+      } else if (pHard >= 60 || (irtData.theta && irtData.theta >= 0.5)) {
+        domEl.innerText = "Vận Dụng (Tư Duy Độc Lập)";
+      } else if (pMed >= 60) {
+        domEl.innerText = "Thông Hiểu (Vững Khái Niệm)";
+      } else {
+        domEl.innerText = "Nhận Biết (Cần Củng Cố Nền)";
+      }
+    }
+
+    const commEl = document.getElementById('report-irt-commentary');
+    if (commEl) {
+      if (irtData.remarks && irtData.remarks.length > 0) {
+        commEl.innerHTML = irtData.remarks.map(r => `<div style="margin-bottom: 0.35rem;">${r}</div>`).join('');
+      } else {
+        commEl.innerHTML = `
+          <div>• <strong>Chỉ số Năng lực Tiềm ẩn (θ):</strong> ${thetaVal} (SEM: ${semVal}) phản ánh khả năng giải quyết các câu hỏi khảo thí.</div>
+          <div>• Thí sinh kiểm soát tốt các câu hỏi thông hiểu, cần tiếp tục rèn luyện kỹ năng phân tích đề thi phân hóa cao.</div>
+        `;
+      }
+      if (typeof app !== 'undefined' && app.renderMath) {
+        app.renderMath(commEl);
       }
     }
 
@@ -302,9 +434,9 @@ const analyticsView = {
       historyContainer.style.display = 'block';
       if (historyList) {
         historyList.innerHTML = history.slice(0, 10).map(h => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" onclick="analyticsView.loadSubmission('${h.id}')" title="Nhấp để xem lại bài làm chi tiết">
             <div>
-              <strong style="color: var(--primary);">${h.exam_title}</strong>
+              <strong style="color: var(--primary);">${h.exam_title}</strong> <span style="font-size:0.75rem; color:#6366f1; background:#eef2ff; padding:2px 6px; border-radius:4px;">Xem lại 🔍</span>
               <div style="font-size: 0.8rem; color: #64748b;">${h.submitted_at} • Thời gian: ${Math.round(h.time_spent_seconds / 60)} phút • Thí sinh: ${h.candidate_name || 'Học sinh'}</div>
             </div>
             <div style="text-align: right;">
@@ -318,13 +450,6 @@ const analyticsView = {
       console.warn("Could not load history", e);
     }
   },
-          </div>
-        `).join('');
-      }
-    } catch (e) {
-      console.warn("Could not load history chart:", e);
-    }
-  },
 
   // -------------------------------------------------------------
   // SAO CHÉP BÁO CÁO ĐIỂM (CHO PHÉP COPY VÀO PHẦN MỀM KHÁC / ZALO / EXCEL)
@@ -335,11 +460,15 @@ const analyticsView = {
       return;
     }
 
-    const grade = this.submissionData.grade_report;
-    const comp = this.submissionData.competency_analysis;
+    const grade = this.submissionData.grade_report || {};
+    const comp = this.submissionData.competency_analysis || {};
+    const irt = comp.irt || {};
     const isSpt = grade.is_spt;
-    const examTitle = isSpt ? "BÀI THI SPT ĐH SƯ PHẠM HÀ NỘI" : "BÀI THI ĐÁNH GIÁ NĂNG LỰC (V-ACT ĐHQG-HCM)";
+    const examTitle = this.submissionData.exam_title || (isSpt ? "BÀI THI SPT ĐH SƯ PHẠM HÀ NỘI" : "BÀI THI ĐÁNH GIÁ NĂNG LỰC (V-ACT ĐHQG-HCM)");
     const maxScore = grade.max_total_score || (isSpt ? 10.0 : 1200);
+
+    const thetaVal = (irt.theta !== undefined && irt.theta !== null) ? ((irt.theta > 0 ? '+' : '') + Number(irt.theta).toFixed(2)) : 'N/A';
+    const semVal = (irt.sem !== undefined && irt.sem !== null) ? `±${Number(irt.sem).toFixed(2)}` : 'N/A';
 
     let reportLines = [
       "==================================================",
@@ -347,11 +476,12 @@ const analyticsView = {
       "==================================================",
       `Họ và tên thí sinh : ${this.submissionData.candidate_name || "Thí sinh khảo thí"}`,
       `Kỳ thi / Đề thi    : ${examTitle}`,
-      `Thời gian nộp bài  : ${new Date().toLocaleString("vi-VN")}`,
+      `Thời gian nộp bài  : ${this.submissionData.submitted_at || new Date().toLocaleString("vi-VN")}`,
       `--------------------------------------------------`,
       `TỔNG ĐIỂM ĐẠT ĐƯỢC : ${grade.total_score} / ${maxScore} điểm`,
-      `Xếp loại năng lực  : ${comp.tier_rating}`,
-      `Thứ hạng phân vị   : Top ${100 - comp.estimated_percentile}% toàn quốc (Phân vị: ${comp.estimated_percentile}%)`
+      `Xếp loại năng lực  : ${comp.tier_rating || "Đạt chuẩn"}`,
+      `Thứ hạng phân vị   : Top ${100 - (comp.estimated_percentile || 50)}% toàn quốc (Phân vị: ${comp.estimated_percentile || 50}%)`,
+      `Chỉ số IRT Theta   : ${thetaVal} (Sai số chuẩn SEM: ${semVal})`
     ];
 
     if (!isSpt) {
@@ -361,6 +491,27 @@ const analyticsView = {
         `• Phần 1 (Ngôn ngữ)           : ${grade.sec1_score} / 400đ`,
         `• Phần 2 (Toán & Số liệu)     : ${grade.sec2_score} / 300đ`,
         `• Phần 3 (Giải quyết vấn đề)  : ${grade.sec3_score} / 500đ`
+      );
+    } else {
+      reportLines.push(
+        `--------------------------------------------------`,
+        `ĐIỂM CÁC PHẦN THI (CHUẨN ĐH SƯ PHẠM HÀ NỘI 10.0Đ):`,
+        `• Phần 1 (Trắc nghiệm khách quan) : ${grade.sec1_score} đ`,
+        `• Phần 2 (Đúng / Sai đa mệnh đề) : ${grade.sec2_score} đ`,
+        `• Phần 3 (Điền đáp số ngắn)       : ${grade.sec3_score} đ`,
+        (grade.sec4_score && grade.sec4_score > 0) ? `• Phần 4 (Tự luận & Luận điểm)    : ${grade.sec4_score} đ` : ''
+      );
+    }
+
+    if (irt.cognitive_stats) {
+      const cog = irt.cognitive_stats;
+      reportLines.push(
+        `--------------------------------------------------`,
+        `HIỆU SUẤT THEO 4 BẬC NHẬN THỨC GDPT 2018:`,
+        `• Nhận biết     : ${cog.nhan_biet?.percentage ?? 0}%`,
+        `• Thông hiểu    : ${cog.thong_hieu?.percentage ?? 0}%`,
+        `• Vận dụng      : ${cog.van_dung?.percentage ?? 0}%`,
+        `• Vận dụng cao  : ${cog.van_dung_cao?.percentage ?? 0}%`
       );
     }
 
@@ -393,36 +544,138 @@ const analyticsView = {
       "Được chứng nhận bởi Hệ Thống Khảo Thí ĐGNL Chuẩn Hóa GDPT 2018."
     );
 
-    const fullText = reportLines.join("\n");
+    const fullText = reportLines.filter(Boolean).join("\n");
 
-    // Copy to clipboard
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(fullText).then(() => {
-        alert("✅ ĐÃ SAO CHÉP THÀNH CÔNG BẢNG ĐIỂM!\n\nBạn có thể dán (Ctrl + V) vào Zalo, Word, Excel, Google Docs hoặc gửi cho Thầy/Cô và phụ huynh xem ngay.");
-      }).catch(err => {
-        this.fallbackCopyText(fullText);
+        alert("✅ ĐÃ SAO CHÉP THÀNH CÔNG BẢNG ĐIỂM!\n\nBạn có thể dán (Ctrl + V) vào Zalo, Word, Excel, Google Docs hoặc gửi cho Thầy/Cô xem ngay.");
+      }).catch(() => {
+        this.fallbackCopyText(fullText, "bảng điểm");
       });
     } else {
-      this.fallbackCopyText(fullText);
+      this.fallbackCopyText(fullText, "bảng điểm");
     }
   },
 
-  fallbackCopyText(text) {
+  // -------------------------------------------------------------
+  // SAO CHÉP DỮ LIỆU ĐIỂM NĂNG LỰC DẠNG JSON ĐỂ DÁN VÀO PHẦN MỀM KHÁC
+  // -------------------------------------------------------------
+  copyJSON() {
+    if (!this.submissionData) {
+      alert("Chưa có dữ liệu bài thi để sao chép!");
+      return;
+    }
+
+    const payload = this.buildExportPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        alert("✅ ĐÃ SAO CHÉP DỮ LIỆU NĂNG LỰC (JSON) VÀO CLIPBOARD!\n\nBạn có thể dán (Ctrl + V) trực tiếp vào Python, R, SPSS, Google Colab hoặc hệ thống phân tích khác.");
+      }).catch(() => {
+        this.fallbackCopyText(jsonStr, "dữ liệu JSON năng lực");
+      });
+    } else {
+      this.fallbackCopyText(jsonStr, "dữ liệu JSON năng lực");
+    }
+  },
+
+  // -------------------------------------------------------------
+  // XUẤT FILE JSON CHỨA TRỌN VẸN CHỈ SỐ IRT & NĂNG LỰC
+  // -------------------------------------------------------------
+  exportJSON() {
+    if (!this.submissionData) {
+      alert("Chưa có dữ liệu bài thi để xuất file!");
+      return;
+    }
+
+    const payload = this.buildExportPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const candClean = (this.submissionData.candidate_name || "ThiSinh").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Ho_So_Nang_Luc_IRT_${candClean}_${dateStr}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  },
+
+  buildExportPayload() {
+    const s = this.submissionData || {};
+    const grade = s.grade_report || {};
+    const comp = s.competency_analysis || {};
+    const irt = comp.irt || {};
+
+    return {
+      version: "DGNL_IRT_v2.0",
+      export_timestamp: new Date().toISOString(),
+      candidate_info: {
+        candidate_name: s.candidate_name || "Thí sinh khảo thí",
+        submission_id: s.submission_id || "",
+        exam_id: s.exam_id || "",
+        exam_title: s.exam_title || "",
+        submitted_at: s.submitted_at || "",
+        time_spent_seconds: s.time_spent_seconds || 0
+      },
+      assessment_scores: {
+        total_score: grade.total_score || 0,
+        max_total_score: grade.max_total_score || (grade.is_spt ? 10.0 : 1200.0),
+        is_spt: Boolean(grade.is_spt),
+        sec1_score: grade.sec1_score || 0,
+        sec2_score: grade.sec2_score || 0,
+        sec3_score: grade.sec3_score || 0,
+        sec4_score: grade.sec4_score || 0,
+        correct_count: grade.correct_count || 0,
+        total_questions: grade.total_questions || 0,
+        tier_rating: comp.tier_rating || "Đạt chuẩn",
+        estimated_percentile: comp.estimated_percentile || 50.0
+      },
+      irt_parameters: {
+        theta: irt.theta ?? 0.0,
+        sem: irt.sem ?? 0.25,
+        ci_lower_95: irt.ci_lower ?? -0.5,
+        ci_upper_95: irt.ci_upper ?? 0.5,
+        model: irt.model || "2PL / 3PL Item Response Theory",
+        cognitive_levels: irt.cognitive_stats || {},
+        pedagogical_remarks: irt.remarks || []
+      },
+      domain_competencies: grade.domain_stats || {},
+      item_responses: (grade.detailed_results || []).map(r => ({
+        question_number: r.question_number,
+        domain: r.domain,
+        section_id: r.section_id,
+        question_type: r.question_type,
+        difficulty: r.difficulty,
+        user_answer: r.user_answer,
+        correct_answer: r.correct_answer,
+        is_correct: r.is_correct,
+        is_partial: r.is_partial,
+        points: r.points,
+        earned_points: r.earned_points
+      })),
+      ai_advice: s.ai_advice || ""
+    };
+  },
+
+  fallbackCopyText(text, label = "dữ liệu") {
     const ta = document.createElement("textarea");
     ta.value = text;
     document.body.appendChild(ta);
     ta.select();
     try {
       document.execCommand("copy");
-      alert("✅ ĐÃ SAO CHÉP BẢNG ĐIỂM VÀO BỘ NHỚ TẠM!\n\nBạn có thể dán (Ctrl + V) vào phần mềm khác.");
+      alert(`✅ ĐÃ SAO CHÉP ${label.toUpperCase()} VÀO BỘ NHỚ TẠM!\n\nBạn có thể dán (Ctrl + V) vào phần mềm khác.`);
     } catch (e) {
-      prompt("Sao chép thủ công báo cáo dưới đây (Ctrl + C):", text);
+      prompt(`Sao chép thủ công ${label} dưới đây (Ctrl + C):`, text);
     }
     document.body.removeChild(ta);
   },
 
   // -------------------------------------------------------------
-  // XUẤT FILE BẢNG ĐIỂM EXCEL / CSV
+  // XUẤT FILE BẢNG ĐIỂM EXCEL / CSV (BAO GỒM CẢ TỔNG QUAN IRT LẪN CHI TIẾT)
   // -------------------------------------------------------------
   exportCSV() {
     if (!this.submissionData) {
@@ -430,20 +683,45 @@ const analyticsView = {
       return;
     }
 
-    const results = this.submissionData.grade_report?.detailed_results || [];
-    if (results.length === 0) {
-      alert("Chưa có danh sách chi tiết các câu hỏi.");
-      return;
-    }
+    const s = this.submissionData;
+    const grade = s.grade_report || {};
+    const comp = s.competency_analysis || {};
+    const irt = comp.irt || {};
+    const results = grade.detailed_results || [];
 
     // Header UTF-8 BOM để Excel hiển thị đúng tiếng Việt có dấu
     let csvContent = "\uFEFF";
-    csvContent += "Câu số,Miền năng lực,Dạng câu hỏi,Đáp án bạn chọn,Đáp án chính xác,Kết quả,Điểm đạt được,Điểm tối đa,Lời giải chi tiết\n";
+
+    // PHẦN 1: TÓM TẮT HỒ SƠ NĂNG LỰC (METADATA & IRT PARAMETERS)
+    csvContent += "=== BÁO CÁO ĐÁNH GIÁ NĂNG LỰC VÀ KHẢO THÍ IRT ===\n";
+    csvContent += `Thí sinh,${JSON.stringify(s.candidate_name || "Thí sinh")}\n`;
+    csvContent += `Đề thi,${JSON.stringify(s.exam_title || "Bài thi ĐGNL")}\n`;
+    csvContent += `Thời gian nộp bài,${JSON.stringify(s.submitted_at || new Date().toLocaleString("vi-VN"))}\n`;
+    csvContent += `Thời gian làm bài,${Math.round((s.time_spent_seconds || 0) / 60)} phút\n`;
+    csvContent += `Tổng điểm đạt được,${grade.total_score || 0} / ${grade.max_total_score || (grade.is_spt ? 10.0 : 1200.0)}\n`;
+    csvContent += `Xếp loại năng lực,${JSON.stringify(comp.tier_rating || "Đạt chuẩn")}\n`;
+    csvContent += `Phân vị toàn quốc (Percentile),${comp.estimated_percentile || 50.0}%\n`;
+    csvContent += `Chỉ số năng lực tiềm ẩn IRT Theta (θ),${irt.theta ?? 0.0}\n`;
+    csvContent += `Sai số đo lường chuẩn SEM,${irt.sem ?? 0.25}\n`;
+    csvContent += `Khoảng tin cậy 95% IRT,"[${irt.ci_lower ?? -0.5}; ${irt.ci_upper ?? 0.5}]"\n`;
+    if (irt.cognitive_stats) {
+      const cog = irt.cognitive_stats;
+      csvContent += `Nhận biết (%),${cog.nhan_biet?.percentage ?? 0}%\n`;
+      csvContent += `Thông hiểu (%),${cog.thong_hieu?.percentage ?? 0}%\n`;
+      csvContent += `Vận dụng (%),${cog.van_dung?.percentage ?? 0}%\n`;
+      csvContent += `Vận dụng cao (%),${cog.van_dung_cao?.percentage ?? 0}%\n`;
+    }
+    csvContent += "\n";
+
+    // PHẦN 2: CHI TIẾT TỪNG CÂU HỎI
+    csvContent += "=== BẢNG CHI TIẾT PHẢN HỒI TỪNG CÂU HỎI (ITEM RESPONSES) ===\n";
+    csvContent += "Câu số,Miền năng lực,Dạng câu hỏi,Độ khó,Đáp án bạn chọn,Đáp án chính xác,Kết quả,Điểm đạt được,Điểm tối đa,Lời giải chi tiết\n";
 
     results.forEach(r => {
       const qNum = r.question_number || "";
       const domain = `"${(r.domain || "").replace(/"/g, '""')}"`;
       const qType = `"${(r.question_type || "").replace(/"/g, '""')}"`;
+      const diff = `"${(r.difficulty || "medium").replace(/"/g, '""')}"`;
       
       let uAns = r.user_answer;
       if (typeof uAns === "object" && uAns !== null) {
@@ -462,17 +740,20 @@ const analyticsView = {
       const pts = r.points || 0;
       const expl = `"${(r.explanation || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`;
 
-      csvContent += `${qNum},${domain},${qType},${uAns},${cAns},${resultText},${earned},${pts},${expl}\n`;
+      csvContent += `${qNum},${domain},${qType},${diff},${uAns},${cAns},${resultText},${earned},${pts},${expl}\n`;
     });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    const candClean = (s.candidate_name || "ThiSinh").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_");
     const dateStr = new Date().toISOString().slice(0, 10);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Bang_Diem_Chi_Tiet_DGNL_${dateStr}.csv`);
+    link.setAttribute("download", `Bang_Diem_Nang_Luc_DGNL_${candClean}_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
 };
+
+window.analyticsView = analyticsView;
