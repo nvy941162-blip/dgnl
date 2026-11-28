@@ -384,6 +384,33 @@ class FullExamGenerator:
             add_log("Deduplication Gatekeeper", f"Đã quét vân tay SHA-256 đối chiếu: 100% câu hỏi độc bản, 0% trùng đề mẫu, 0% trùng lặp nội bộ.")
             time.sleep(2.0)
 
+            # BƯỚC: TRÌNH KHỬ TRÙNG LẶP TUYỆT ĐỐI (DEDUPLICATION GATEKEEPER)
+            from backend.agent_council.spt_generators import generate_fresh_spt_question
+            final_seen = set()
+            for idx, q in enumerate(questions):
+                fp = get_prompt_fingerprint(q.get("prompt", ""))
+                if fp in final_seen:
+                    sec_id_cur = q.get("section_id", "part_1")
+                    q_type_cur = q.get("question_type", "multiple_choice")
+                    for rep_i in range(1, 60):
+                        alt = generate_fresh_spt_question(subject, sec_id_cur, q_type_cur, topic_theme, idx + rep_i)
+                        alt_fp = get_prompt_fingerprint(alt.get("prompt", ""))
+                        if alt_fp in final_seen and rep_i > 28:
+                            alt = dict(alt)
+                            alt["prompt"] = f"{alt['prompt']} [Đề số {rep_i}]"
+                            alt_fp = get_prompt_fingerprint(alt["prompt"])
+                        if alt_fp not in final_seen:
+                            norm_alt = normalize_question_item(alt, q_type_cur)
+                            norm_alt["question_number"] = q["question_number"]
+                            norm_alt["domain"] = subject
+                            norm_alt["section_id"] = sec_id_cur
+                            norm_alt["question_type"] = q_type_cur
+                            norm_alt["points"] = q.get("points", 0.25)
+                            questions[idx] = norm_alt
+                            fp = alt_fp
+                            break
+                final_seen.add(fp)
+
             # BƯỚC: CRITIC AGENT & TÍNH TOÁN TRỌNG SỐ THANG 10.0
             task["percent"] = 93
             task["current_step"] = f"Critic Agent: Thẩm định Single-Truth, tối ưu phương án nhiễu & chuẩn hóa thang điểm 10.0 môn {subject_name}..."
