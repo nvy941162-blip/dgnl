@@ -14,6 +14,18 @@ import random
 import math
 from typing import Dict, Any, List, Optional
 
+from backend.exam_engine.diagram_generator import (
+    draw_orthographic_projection,
+    draw_smart_greenhouse_diagram,
+    draw_hydroponics_nft_diagram,
+    draw_nanosilver_chart,
+    draw_climate_chart,
+    draw_gdp_structure_chart,
+    draw_math_cubic_graph,
+    draw_math_rational_graph,
+    draw_math_spatial_pyramid
+)
+
 def generate_fresh_spt_question(
     subject: str,
     sec_id: str,
@@ -42,6 +54,10 @@ def generate_fresh_spt_question(
         return _generate_fresh_history(sec_id, q_type, index)
     elif subject == "geography":
         return _generate_fresh_geography(sec_id, q_type, index)
+    elif subject in ["tech_ind", "tech_industry", "spt_tech_ind", "cong_nghe_cong_nghiep"]:
+        return _generate_fresh_tech_ind(sec_id, q_type, index)
+    elif subject in ["tech_agr", "tech_agriculture", "spt_tech_agr", "cong_nghe_nong_nghiep"]:
+        return _generate_fresh_tech_agr(sec_id, q_type, index)
     else:
         return _generate_fresh_general(subject, sec_id, q_type, index)
 
@@ -54,6 +70,8 @@ def _generate_fresh_math(sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
         templates = [
             # 1. Tiệm cận hàm phân thức
             lambda i: {
+                "chart_image": draw_math_rational_graph(i),
+                "passage": "Quan sát đồ thị hàm phân thức bậc nhất trên bậc nhất và các đường tiệm cận ở khung bên trái.",
                 "prompt": f"Cho hàm số $y = \\frac{{2x - {i % 4 + 1}}}{{x + {i % 3 + 1}}}$. Đồ thị hàm số có các đường tiệm cận đứng và tiệm cận ngang lần lượt là:",
                 "options": {
                     "A": f"Tiệm cận đứng $x = -{i % 3 + 1}$, tiệm cận ngang $y = 2$.",
@@ -66,6 +84,8 @@ def _generate_fresh_math(sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
             },
             # 2. Cực trị hàm bậc 3
             lambda i: {
+                "chart_image": draw_math_cubic_graph(i),
+                "passage": "Quan sát đồ thị hàm số bậc ba trên hệ trục tọa độ Oxy ở khung bên trái.",
                 "prompt": f"Điểm cực đại của đồ thị hàm số $y = -x^3 + 3x^2 + {i % 5 + 1}$ là điểm nào sau đây?",
                 "options": {
                     "A": f"$(2; {i % 5 + 5})$",
@@ -217,6 +237,8 @@ def _generate_fresh_math(sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
             },
             # 15. Góc giữa hai đường thẳng
             lambda i: {
+                "chart_image": draw_math_spatial_pyramid(),
+                "passage": "Quan sát hình vẽ hình chóp không gian S.ABC có SA ⊥ (ABC) và đáy tam giác vuông tại B ở khung bên trái.",
                 "prompt": f"Cho hình chóp $S.ABC$ có đáy $ABC$ là tam giác vuông tại $B$, $SA \\perp (ABC)$. Góc giữa hai đường thẳng $AB$ và $SC$ là góc giữa $AB$ và đường thẳng nào?",
                 "options": {
                     "A": "Đường thẳng qua $C$ song song với $AB$.",
@@ -2149,6 +2171,32 @@ def _generate_fresh_geography(sec_id: str, q_type: str, idx: int) -> Dict[str, A
     elif q_type == "true_false":
         tf_templates = [
             lambda i: {
+                "chart_image": draw_climate_chart(f"Trạm Khí tượng số {i}"),
+                "passage": "Quan sát biểu đồ khí hậu kết hợp nhiệt độ và lượng mưa của trạm khí tượng ở khung bên trái.",
+                "prompt": "Cho biểu đồ khí hậu nhiệt độ và lượng mưa của trạm khí tượng (nhiệt độ tháng 1 là 16.4°C, tháng 7 là 28.9°C; mưa tập trung từ tháng 5 đến tháng 10). Xét tính Đúng / Sai:",
+                "tf_statements": {
+                    "a": "Trạm khí tượng này thuộc miền khí hậu phía Bắc nước ta có mùa đông lạnh.",
+                    "b": "Mùa mưa của trạm khí tượng diễn ra từ tháng 11 đến tháng 4 năm sau.",
+                    "c": "Biên độ nhiệt năm của trạm đạt trên 12°C chủ yếu do tác động của gió mùa Đông Bắc.",
+                    "d": "Tổng lượng mưa cả năm đạt trên 1500 mm và phân hóa sâu sắc theo mùa."
+                },
+                "correct_answer": {"a": "Đ", "b": "S", "c": "Đ", "d": "Đ"},
+                "explanation": "(a) Đúng (tháng 1 dưới 18°C là đặc trưng mùa đông miền Bắc); (b) Sai (mưa nhiều tháng 5-10); (c) Đúng (gió mùa đông bắc hạ thấp nhiệt độ mùa đông làm biên độ nhiệt cao); (d) Đúng."
+            },
+            lambda i: {
+                "chart_image": draw_gdp_structure_chart(),
+                "passage": "Quan sát biểu đồ chuyển dịch cơ cấu GDP nước ta giai đoạn 2010 - 2022 (%) ở khung bên trái.",
+                "prompt": "Cho biểu đồ cơ cấu GDP nước ta giai đoạn 2010 - 2022. Xét tính Đúng / Sai của các nhận định sau:",
+                "tf_statements": {
+                    "a": "Tỉ trọng ngành nông, lâm nghiệp và thủy sản có xu hướng giảm liên tục qua các năm.",
+                    "b": "Tỉ trọng ngành công nghiệp và xây dựng luôn chiếm tỉ trọng tuyệt đối trên 50% trong cơ cấu.",
+                    "c": "Ngành dịch vụ có tốc độ tăng tỉ trọng nhanh nhất, đạt trên 38% vào năm 2022.",
+                    "d": "Sự chuyển dịch cơ cấu kinh tế phản ánh đúng xu thế công nghiệp hóa, hiện đại hóa đất nước."
+                },
+                "correct_answer": {"a": "Đ", "b": "S", "c": "Đ", "d": "Đ"},
+                "explanation": "(a) Đúng (từ 15.4% xuống 11.9%); (b) Sai (chỉ dao động 40.6% - 41.3%, không vượt 50%); (c) Đúng (từ 33% lên 38.2%); (d) Đúng."
+            },
+            lambda i: {
                 "prompt": """Xét về đặc điểm vị trí địa lý và phạm vi lãnh thổ nước ta. Xét tính đúng/sai của các mệnh đề sau:""",
                 "tf_statements": {
                     "a": "Nước ta nằm hoàn toàn trong vùng nội chí tuyến bán cầu Bắc.",
@@ -2596,7 +2644,231 @@ def _generate_fresh_civics_law(sec_id: str, q_type: str, idx: int) -> Dict[str, 
 
 
 # =============================================================================
-# 9. GENERAL FALLBACK (DÀNH CHO CÁC MÔN KHÁC NHƯ CÔNG NGHỆ, VĂN HỌC, V.V.)
+# 9. CÔNG NGHỆ CÔNG NGHIỆP (TECH INDUSTRY) - ĐẦY ĐỦ HÌNH CHIẾU VÀ BẢN VẼ KỸ THUẬT
+# =============================================================================
+def _generate_fresh_tech_ind(sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
+    if q_type == "multiple_choice":
+        templates = [
+            # 1. Hình chiếu vuông góc
+            lambda i: {
+                "chart_image": draw_orthographic_projection(i),
+                "passage": "Quan sát hình vẽ vật thể mẫu (Isometric 3D) và 4 phương án hình chiếu 3 hướng (Hình a, Hình b, Hình c, Hình d) ở khung bên trái.",
+                "prompt": "Hình chiếu vuông góc của vật thể dưới đây tương ứng với hình nào?",
+                "options": {
+                    "A": "Hình a.",
+                    "B": "Hình b.",
+                    "C": "Hình c.",
+                    "D": "Hình d."
+                },
+                "correct_answer": "B",
+                "explanation": "Hình chiếu cạnh và hình chiếu đứng có đường nét đứt biểu diễn rãnh xuyên suốt tương ứng với Hình b."
+            },
+            # 2. Hình chiếu trục đo
+            lambda i: {
+                "chart_image": draw_orthographic_projection(i),
+                "passage": "Quan sát bản vẽ các hình chiếu vuông góc và hình chiếu trục đo ở khung bên trái.",
+                "prompt": "Xác định hình chiếu trục đo của vật thể được biểu diễn bởi các hình chiếu vuông góc đã cho.",
+                "options": {
+                    "A": "Hình a",
+                    "B": "Hình b",
+                    "C": "Hình c",
+                    "D": "Hình d"
+                },
+                "correct_answer": "B",
+                "explanation": "Đối chiếu các đường vát nghiêng và lỗ rãnh khoét ở giữa xác định được Hình b là hình chiếu trục đo chính xác."
+            },
+            # 3. Tiêu chuẩn nét vẽ bản vẽ kỹ thuật
+            lambda i: {
+                "prompt": "Trong bản vẽ kỹ thuật cơ khí theo TCVN, đường đỉnh ren và đường giới hạn ren của mối ghép ren được vẽ bằng loại nét nào sau đây?",
+                "options": {
+                    "A": "Nét liền đậm.",
+                    "B": "Nét liền mảnh.",
+                    "C": "Nét đứt mảnh.",
+                    "D": "Nét gạch chấm mảnh."
+                },
+                "correct_answer": "A",
+                "explanation": "Theo quy ước vẽ ren (TCVN): Đường đỉnh ren và đường giới hạn ren được vẽ bằng nét liền đậm, đường chân ren vẽ bằng nét liền mảnh."
+            },
+            # 4. Cảm biến và mạch điện tử tự động
+            lambda i: {
+                "prompt": "Trong mạch điều khiển bật tắt đèn tự động khi trời tối, loại cảm biến nào sau đây đóng vai trò thu nhận tín hiệu cường độ ánh sáng môi trường?",
+                "options": {
+                    "A": "Quang điện trở (LDR) hoặc quang đi-ốt.",
+                    "B": "Cảm biến nhiệt độ điện trở NTC.",
+                    "C": "Cảm biến siêu âm đo khoảng cách HC-SR04.",
+                    "D": "Cảm biến áp suất khí nén."
+                },
+                "correct_answer": "A",
+                "explanation": "Quang điện trở (LDR) có giá trị điện trở thay đổi mạnh theo cường độ ánh sáng chiếu vào, dùng phổ biến trong mạch tự động chiếu sáng."
+            },
+            # 5. Rơ le điện từ
+            lambda i: {
+                "prompt": "Bộ phận nào trong rơ le điện từ có chức năng đóng/cắt mạch điện tải công suất lớn khi cuộn hút được cấp điện?",
+                "options": {
+                    "A": "Hệ thống tiếp điểm (tiếp điểm thường mở NO và thường đóng NC).",
+                    "B": "Lõi thép cố định.",
+                    "C": "Lò xo phản hồi.",
+                    "D": "Đi-ốt bảo vệ chống xung ngược."
+                },
+                "correct_answer": "A",
+                "explanation": "Khi có dòng điện qua cuộn dây, lực từ hút nắp phần ứng làm chuyển đổi trạng thái của hệ thống tiếp điểm NO/NC."
+            },
+            # 6. Vi điều khiển
+            lambda i: {
+                "prompt": "Cổng giao tiếp nào trên vi điều khiển thường được sử dụng để điều khiển tốc độ động cơ DC một cách mượt mà thông qua kỹ thuật điều chế độ rộng xung?",
+                "options": {
+                    "A": "Chân PWM (Pulse Width Modulation).",
+                    "B": "Chân ngắt ngoài (External Interrupt).",
+                    "C": "Chân cấp nguồn 5V.",
+                    "D": "Chân thạch anh dao động XTAL."
+                },
+                "correct_answer": "A",
+                "explanation": "Kỹ thuật băm xung PWM điều chỉnh chu kỳ nhiệm vụ (duty cycle) để điều khiển điện áp trung bình đặt lên động cơ DC."
+            }
+        ]
+        fn = templates[(idx - 1) % len(templates)]
+        res = fn(idx)
+        return {**res, "domain": "tech_industry", "difficulty": "medium", "question_type": "multiple_choice"}
+
+    elif q_type == "true_false":
+        return {
+            "domain": "tech_industry",
+            "difficulty": "medium",
+            "question_type": "true_false",
+            "prompt": "Về quy trình thiết kế kỹ thuật và an toàn điện trong công nghiệp. Xét tính đúng/sai của các nhận định sau:",
+            "tf_statements": {
+                "a": "Nối đất bảo vệ (tiếp địa) là biện pháp đưa dòng rò từ vỏ máy xuống đất để bảo vệ an toàn cho con người.",
+                "b": "Áptômát chống giật (ELCB/RCCB) hoạt động dựa trên nguyên lý so sánh dòng điện trên dây pha và dây trung tính.",
+                "c": "Trong bản vẽ lắp, kích thước khuôn khổ và kích thước lắp ghép là các kích thước bắt buộc phải ghi.",
+                "d": "Chỉ được phép bảo dưỡng thiết bị máy móc khi hệ thống đang hoạt động ở chế độ tải cực đại."
+            },
+            "correct_answer": {"a": "Đ", "b": "Đ", "c": "Đ", "d": "S"},
+            "explanation": "Nhận định (d) sai vì tuyệt đối phải ngắt nguồn điện và treo biển cảnh báo an toàn trước khi bảo dưỡng thiết bị."
+        }
+    elif q_type == "short_answer":
+        return {
+            "domain": "tech_industry",
+            "difficulty": "medium",
+            "question_type": "short_answer",
+            "prompt": "Một bóng đèn sợi đốt 220V - 100W hoạt động ở điện áp định mức 220V. Cường độ dòng điện chạy qua bóng đèn xấp xỉ bằng bao nhiêu Ampe? (Làm tròn đến 2 chữ số thập phân)",
+            "correct_answer": "0.45",
+            "accepted_answers": ["0.45", "0,45", "0.45A"],
+            "explanation": "I = P / U = 100 / 220 ≈ 0.45 A."
+        }
+    else:
+        return {
+            "domain": "tech_industry",
+            "difficulty": "hard",
+            "question_type": "essay",
+            "prompt": "Trình bày nguyên lý hoạt động của mạch điều khiển động cơ điện xoay chiều một pha sử dụng rơ le nhiệt để bảo vệ quá tải.",
+            "correct_answer": "Rơ le nhiệt sử dụng phiến kim loại kép có hệ số giãn nở nhiệt khác nhau. Khi quá tải, dòng lớn đốt nóng phiến kim loại uốn cong làm hở tiếp điểm, ngắt mạch khởi động từ bảo vệ động cơ.",
+            "explanation": "Thang điểm 1.5đ: Cấu tạo phiến kim loại kép (0.5đ), Hiện tượng giãn nở nhiệt khi quá dòng (0.5đ), Tác động ngắt mạch điều khiển (0.5đ)."
+        }
+
+
+# =============================================================================
+# 10. CÔNG NGHỆ NÔNG NGHIỆP (TECH AGRICULTURE) - MÔ HÌNH NHÀ KÍNH & THỦY CANH & BIOGAS
+# =============================================================================
+def _generate_fresh_tech_agr(sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
+    if q_type == "multiple_choice":
+        templates = [
+            # 1. Nhà kính thông minh
+            lambda i: {
+                "chart_image": draw_smart_greenhouse_diagram(i),
+                "passage": "Quan sát sơ đồ mô hình nhà kính thông minh công nghệ cao (Smart IoT Greenhouse) ở khung bên trái.",
+                "prompt": "Trong mô hình nhà kính thông minh ở hình bên, thiết bị nào chịu trách nhiệm thu nhận dữ liệu độ ẩm đất và kích hoạt van tưới tự động?",
+                "options": {
+                    "A": "Cảm biến độ ẩm đất kết nối với bộ điều khiển trung tâm vi xử lý.",
+                    "B": "Quạt thông gió đối lưu gắn trên vách mái.",
+                    "C": "Khung kính thu nhận bức xạ nhiệt mặt trời.",
+                    "D": "Bộ lọc ánh sáng lưới đen cắt nắng."
+                },
+                "correct_answer": "A",
+                "explanation": "Cảm biến độ ẩm đất đo điện trở/điện dung đất và gửi tín hiệu về vi điều khiển để tự động kích hoạt rơ le mở van điện từ tưới nước."
+            },
+            # 2. Thủy canh hồi lưu NFT
+            lambda i: {
+                "chart_image": draw_hydroponics_nft_diagram(i),
+                "passage": "Quan sát sơ đồ hệ thống trồng rau thủy canh hồi lưu NFT (Nutrient Film Technique) ở khung bên trái.",
+                "prompt": "Đặc điểm cốt lõi của kỹ thuật thủy canh màng dinh dưỡng hồi lưu (NFT) thể hiện trong sơ đồ là:",
+                "options": {
+                    "A": "Dung dịch dinh dưỡng chảy liên tục thành một lớp màng rất mỏng qua rễ cây và tuần hoàn khép kín về bể chứa.",
+                    "B": "Cây trồng được ngâm hoàn toàn toàn bộ thân và lá chìm sâu trong bể nước.",
+                    "C": "Không sử dụng máy bơm mà chỉ dựa vào nước mưa tự nhiên tích trữ.",
+                    "D": "Cần một lượng đất màu mỡ lớn nhồi vào các máng nghiêng."
+                },
+                "correct_answer": "A",
+                "explanation": "Kỹ thuật NFT tạo dòng màng dinh dưỡng mỏng liên tục chảy qua đáy rễ, giúp rễ vừa hấp thụ đủ khoáng chất vừa trao đổi khí oxy tối ưu."
+            },
+            # 3. Quản lý chất thải chăn nuôi Biogas
+            lambda i: {
+                "prompt": "Mô hình xử lý chất thải chăn nuôi bằng hầm Biogas mang lại lợi ích kép nào sau đây cho kinh tế hộ gia đình nông thôn?",
+                "options": {
+                    "A": "Tạo ra khí sinh học (CH4) phục vụ đun nấu và nước thải sau ủ làm phân bón hữu cơ sinh học giàu dinh dưỡng.",
+                    "B": "Tạo ra than cốc phục vụ nấu quặng kim loại.",
+                    "C": "Loại bỏ hoàn toàn nhu cầu sử dụng điện năng quốc gia.",
+                    "D": "Biến chất thải thành thức ăn trực tiếp ngay cho gia súc mà không cần ủ."
+                },
+                "correct_answer": "A",
+                "explanation": "Quá trình lên men kỵ khí sinh ra khí metan làm chất đốt sạch và diệt trừ mầm bệnh giun sán, biến bã phân thành phân hữu cơ an toàn."
+            },
+            # 4. Tiêu chuẩn VietGAP
+            lambda i: {
+                "prompt": "Yêu cầu cốt lõi nào sau đây trong quy trình trồng trọt theo tiêu chuẩn VietGAP giúp người tiêu dùng có thể truy xuất nguồn gốc nông sản an toàn?",
+                "options": {
+                    "A": "Ghi chép và lưu trữ đầy đủ sổ nhật ký canh tác (thời điểm bón phân, phun thuốc, thu hoạch).",
+                    "B": "Phun thuốc bảo vệ thực vật định kỳ mỗi tuần một lần bất kể có sâu bệnh hay không.",
+                    "C": "Sử dụng phân chuồng tươi bón trực tiếp lên rau trước khi thu hoạch 1 ngày.",
+                    "D": "Sử dụng hóa chất kích thích tăng trưởng cực mạnh để rút ngắn thời gian thu hoạch."
+                },
+                "correct_answer": "A",
+                "explanation": "Nhật ký đồng ruộng là bằng chứng pháp lý bắt buộc để phục vụ việc kiểm tra chứng nhận và truy xuất nguồn gốc an toàn thực phẩm."
+            }
+        ]
+        fn = templates[(idx - 1) % len(templates)]
+        res = fn(idx)
+        return {**res, "domain": "tech_agriculture", "difficulty": "medium", "question_type": "multiple_choice"}
+
+    elif q_type == "true_false":
+        return {
+            "chart_image": draw_nanosilver_chart(),
+            "passage": "Quan sát đồ thị biểu diễn tỉ lệ sống (%) của cá nheo Mỹ sau 7 ngày thử nghiệm điều trị ở khung bên trái.",
+            "domain": "tech_agriculture",
+            "difficulty": "medium",
+            "question_type": "true_false",
+            "prompt": "Đồ thị biểu diễn tỉ lệ cá sống sau 7 ngày thử nghiệm kết hợp nano bạc và florfenicol (Flor) trong điều trị bệnh do vi khuẩn Aeromonas veronii gây ra trên cá nheo Mỹ. Các công thức: CT1 (Flor 15 ppm), CT2 (Flor 10 ppm + nano bạc 5 ppm), CT3 (Flor 5 ppm + nano bạc 10 ppm), CT4 (nano bạc 15 ppm), ĐC (Không điều trị). Xét tính Đúng / Sai:",
+            "tf_statements": {
+                "a": "Sau 7 ngày điều trị, tỉ lệ cá sống ở tất cả các công thức điều trị (CT1, CT2, CT3 và CT4) đều cao hơn rõ rệt so với công thức ĐC (không điều trị).",
+                "b": "Tỉ lệ cá sống ở phác đồ điều trị CT1 luôn cao nhất trong suốt quá trình thử nghiệm.",
+                "c": "Công thức đối chứng ĐC có tỉ lệ cá sống duy trì ổn định trên 90%.",
+                "d": "Việc kết hợp nano bạc và kháng sinh giúp giảm liều lượng kháng sinh sử dụng nhưng vẫn duy trì tỉ lệ sống cao cho thủy sản."
+            },
+            "correct_answer": {"a": "Đ", "b": "Đ", "c": "S", "d": "Đ"},
+            "explanation": "Đối chứng ĐC giảm mạnh về 50% sau 7 ngày (c Sai). Việc bổ sung nano bạc tăng hiệu quả diệt khuẩn và giảm kháng kháng sinh (d Đúng)."
+        }
+    elif q_type == "short_answer":
+        return {
+            "domain": "tech_agriculture",
+            "difficulty": "medium",
+            "question_type": "short_answer",
+            "prompt": "Một trang trại chuẩn bị chuồng nuôi lợn thịt có diện tích 120 m². Theo tiêu chuẩn mật độ nuôi là 1,5 m²/con. Số lượng lợn thịt tối đa trang trại có thể nuôi trong chuồng này là bao nhiêu con?",
+            "correct_answer": "80",
+            "accepted_answers": ["80", "80 con"],
+            "explanation": "Số con = 120 / 1.5 = 80 con."
+        }
+    else:
+        return {
+            "domain": "tech_agriculture",
+            "difficulty": "hard",
+            "question_type": "essay",
+            "prompt": "Phân tích vai trò và nguyên lý của mô hình kinh tế nông nghiệp tuần hoàn (Vườn - Ao - Chuồng - Biogas) trong việc giảm phát thải khí nhà kính và nâng cao thu nhập cho nông dân.",
+            "correct_answer": "Mô hình tuần hoàn tận dụng triệt để dòng vật chất: chất thải chăn nuôi vào hầm biogas tạo năng lượng và phân bón hữu cơ nuôi cá và bón cây trồng; phụ phẩm trồng trọt làm thức ăn cho gia súc, giảm chi phí đầu vào và cắt giảm phát thải khí metan vào khí quyển.",
+            "explanation": "Thang điểm 1.5đ: Khái niệm dòng tuần hoàn vật chất (0.5đ), Giảm phát thải metan & bảo vệ môi trường (0.5đ), Lợi ích kinh tế gia tăng giá trị (0.5đ)."
+        }
+
+
+# =============================================================================
+# 11. GENERAL FALLBACK (DÀNH CHO CÁC MÔN KHÁC)
 # =============================================================================
 def _generate_fresh_general(subject: str, sec_id: str, q_type: str, idx: int) -> Dict[str, Any]:
     topics = [

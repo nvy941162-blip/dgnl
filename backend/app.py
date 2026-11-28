@@ -96,8 +96,14 @@ def seed_benchmark_exam():
                 )
                 db.add(spt_db)
                 print(f"Successfully seeded SPT exam: {spt['title']}")
+            else:
+                existing_spt.data_json = json.dumps(propagate_passages(spt["questions"]), ensure_ascii=False)
 
         db.commit()
+
+        # Tự động đồng bộ các hình vẽ và biểu đồ khoa học kỹ thuật
+        from backend.exam_engine.update_db_diagrams import apply_diagrams_to_db
+        apply_diagrams_to_db()
     except Exception as e:
         print(f"Error seeding exams: {e}")
         db.rollback()

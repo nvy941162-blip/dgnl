@@ -279,9 +279,15 @@ const examRunner = {
       chartContainer.style.display = 'block';
       chartImg.src = imageSource;
       if (q.domain === 'geography') {
-        contextTag.innerText = "Bản đồ / Sơ đồ Địa lý";
+        contextTag.innerText = "Biểu đồ Địa lý & Khí hậu";
       } else if (q.domain === 'data_analysis') {
-        contextTag.innerText = "Biểu đồ phân tích số liệu";
+        contextTag.innerText = "Biểu đồ Phân tích Số liệu";
+      } else if (q.domain === 'tech_industry') {
+        contextTag.innerText = "Bản vẽ Kỹ thuật & Hình chiếu";
+      } else if (q.domain === 'tech_agriculture') {
+        contextTag.innerText = "Sơ đồ Công nghệ Nông nghiệp";
+      } else if (q.domain === 'math') {
+        contextTag.innerText = "Đồ thị Hàm số & Hình học không gian";
       } else {
         contextTag.innerText = "Hình ảnh / Sơ đồ minh họa";
       }
