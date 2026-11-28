@@ -53,6 +53,25 @@ class DomainGenerators:
                 })
         return valid_items
 
+    def _deduplicate_and_pad(self, items: List[Dict[str, Any]], target_count: int, fallback_fn) -> List[Dict[str, Any]]:
+        """Lọc trùng câu hỏi và tự động bù đắp câu mới nếu thiếu, đảm bảo 100% không trùng lặp."""
+        seen = set()
+        unique = []
+        for it in items:
+            p = str(it.get("prompt", "")).strip().lower()
+            if p and p not in seen:
+                seen.add(p)
+                unique.append(it)
+        idx = 0
+        while len(unique) < target_count and idx < 60:
+            fb = fallback_fn(idx)
+            idx += 1
+            p = str(fb.get("prompt", "")).strip().lower()
+            if p and p not in seen:
+                seen.add(p)
+                unique.append(fb)
+        return unique[:target_count]
+
     # =========================================================================
     # 1. TIẾNG VIỆT (20 CÂU)
     # =========================================================================
@@ -106,12 +125,7 @@ Trả về định dạng JSON array đúng 10 phần tử:
         valid_items2 = self._clean_and_validate_items(items2, "vietnamese", "section_1_language", 10)
         results.extend(valid_items2[:10])
 
-        # Bổ sung nếu thiếu bằng thuật toán sinh đa dạng
-        while len(results) < 20:
-            idx = len(results) + 1
-            results.append(self._generate_fallback_vietnamese(idx, topic))
-
-        return results[:20]
+        return self._deduplicate_and_pad(results, 20, lambda i: self._generate_fallback_vietnamese(i, topic))
 
     # =========================================================================
     # 2. TIẾNG ANH (20 CÂU)
@@ -170,11 +184,7 @@ Return strictly valid JSON array of 10 items:
         valid_items2 = self._clean_and_validate_items(items2, "english", "section_1_language", 10)
         results.extend(valid_items2[:10])
 
-        while len(results) < 20:
-            idx = len(results) + 1
-            results.append(self._generate_fallback_english(idx, topic))
-
-        return results[:20]
+        return self._deduplicate_and_pad(results, 20, lambda i: self._generate_fallback_english(i, topic))
 
     # =========================================================================
     # 3. TOÁN HỌC (10 CÂU)
@@ -206,10 +216,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "math", "section_2_logic_data", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_math(i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_math(i))
 
     # =========================================================================
     # 4. TƯ DUY LOGIC (10 CÂU)
@@ -238,10 +245,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "logic", "section_2_logic_data", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self.logic_data_agent.generate_logic_puzzle())
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self.logic_data_agent.generate_logic_puzzle(i))
 
     # =========================================================================
     # 5. PHÂN TÍCH SỐ LIỆU (10 CÂU)
@@ -386,10 +390,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "chemistry", "section_3_problem_solving", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_science("chemistry", i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_science("chemistry", i))
 
     # =========================================================================
     # 7. VẬT LÝ (10 CÂU)
@@ -417,10 +418,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "physics", "section_3_problem_solving", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_science("physics", i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_science("physics", i))
 
     # =========================================================================
     # 8. SINH HỌC (10 CÂU)
@@ -447,10 +445,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "biology", "section_3_problem_solving", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_science("biology", i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_science("biology", i))
 
     # =========================================================================
     # 9. LỊCH SỬ (10 CÂU)
@@ -482,10 +477,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "history", "section_3_problem_solving", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_social("history", i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_social("history", i))
 
     # =========================================================================
     # 10. ĐỊA LÝ (10 CÂU)
@@ -512,10 +504,7 @@ Trả về định dạng JSON array đúng 10 câu:
 ]"""
         ok, items, _ = self.rotator.generate_json(prompt, max_output_tokens=4000)
         valid_items = self._clean_and_validate_items(items, "geography", "section_3_problem_solving", 10)
-        if len(valid_items) < 10:
-            for i in range(len(valid_items) + 1, 11):
-                valid_items.append(self._generate_fallback_social("geography", i))
-        return valid_items[:10]
+        return self._deduplicate_and_pad(valid_items, 10, lambda i: self._generate_fallback_social("geography", i))
 
     # =========================================================================
     # FALLBACK GENERATORS (TẠO CÂU HỎI THAY THẾ ĐA DẠNG 100% KHÔNG TRÙNG LẶP)
@@ -561,6 +550,111 @@ Trả về định dạng JSON array đúng 10 câu:
                 },
                 "correct_answer": "A",
                 "explanation": "Câu A biến cụm chủ ngữ thành trạng ngữ 'Qua tác phẩm...', khiến câu bị thiếu chủ ngữ ngữ pháp."
+            },
+            {
+                "prompt": "Từ 'mặt' trong trường hợp nào dưới đây mang nghĩa chuyển theo phương thức ẩn dụ?",
+                "options": {"A": "Mặt trời mọc ở đằng Đông", "B": "Rửa sạch khuôn mặt", "C": "Mặt bàn học bằng gỗ lim", "D": "Mặt đường gồ ghề khúc khuỷu"},
+                "correct_answer": "A",
+                "explanation": "'Mặt trời' là ẩn dụ tạo nghĩa dựa trên nét tương đồng về hình dáng tròn sáng như mặt người."
+            },
+            {
+                "prompt": "Thao tác lập luận nào được sử dụng chủ yếu nhằm làm sáng tỏ bản chất của một đối tượng bằng cách chia nhỏ đối tượng thành các bộ phận, khía cạnh để xem xét?",
+                "options": {"A": "Thao tác phân tích", "B": "Thao tác so sánh", "C": "Thao tác bác bỏ", "D": "Thao tác chứng minh"},
+                "correct_answer": "A",
+                "explanation": "Phân tích là thao tác chia tách đối tượng thành các yếu tố, bộ phận để đi sâu tìm hiểu bản chất và mối liên hệ nội tại."
+            },
+            {
+                "prompt": "Xác định phong cách ngôn ngữ chức năng của văn bản hành chính nhà nước, công văn hoặc thông tư chỉ đạo:",
+                "options": {"A": "Phong cách ngôn ngữ hành chính - công vụ", "B": "Phong cách ngôn ngữ khoa học", "C": "Phong cách ngôn ngữ chính luận", "D": "Phong cách ngôn ngữ báo chí"},
+                "correct_answer": "A",
+                "explanation": "Văn bản công văn, thông tư, nghị định thuộc phạm vi giao tiếp hành chính - công vụ, có tính quy phạm và khuôn mẫu cao."
+            },
+            {
+                "prompt": "Từ nào sau đây viết ĐÚNG chính tả theo chuẩn chính tả tiếng Việt hiện hành?",
+                "options": {"A": "Chắt chiu", "B": "Trắt chiu", "C": "Chắt triu", "D": "Trắt triu"},
+                "correct_answer": "A",
+                "explanation": "Từ đúng chính tả ghi nhận trong từ điển là 'chắt chiu' (dành dụm từng tí một)."
+            },
+            {
+                "prompt": "Trong câu thơ 'Áo chàm đưa buổi phân ly / Cầm tay nhau biết nói gì hôm nay' (Tố Hữu - Việt Bắc), hình ảnh 'áo chàm' sử dụng biện pháp tu từ gì?",
+                "options": {"A": "Hoán dụ", "B": "Ẩn dụ", "C": "So sánh", "D": "Nhân hóa"},
+                "correct_answer": "A",
+                "explanation": "'Áo chàm' (trang phục đặc trưng của đồng bào Việt Bắc) là hình ảnh hoán dụ lấy dấu hiệu trang phục để chỉ người dân Việt Bắc kháng chiến."
+            },
+            {
+                "prompt": "Câu nào dưới đây là câu ghép chính phụ có mối quan hệ nguyên nhân - kết quả?",
+                "options": {
+                    "A": "Vì thời tiết diễn biến phức tạp nên chuyến bay buộc phải hoãn lại.",
+                    "B": "Trời vừa hửng sáng, nông dân đã ra đồng làm việc.",
+                    "C": "Tuy trời mưa to nhưng các em học sinh vẫn đến lớp đúng giờ.",
+                    "D": "Nếu ngày mai trời nắng ráo thì chúng ta sẽ đi dã ngoại."
+                },
+                "correct_answer": "A",
+                "explanation": "Cặp quan hệ từ 'Vì... nên...' thể hiện rõ quan hệ nguyên nhân - kết quả giữa hai vế câu."
+            },
+            {
+                "prompt": "Xét về mục đích nói, câu 'Bạn có thể vui lòng đóng giúp tôi cánh cửa phòng lại được không?' thực hiện hành động nói gián tiếp nào?",
+                "options": {"A": "Hành động cầu khiến (nhờ vả, yêu cầu)", "B": "Hành động hỏi thông tin đơn thuần", "C": "Hành động trần thuật", "D": "Hành động biểu cảm"},
+                "correct_answer": "A",
+                "explanation": "Hình thức câu hỏi 'có thể... được không' dùng để thực hiện hành vi cầu khiến/nhờ vả một cách lịch sự, nhã nhặn."
+            },
+            {
+                "prompt": "Câu thành ngữ nào sau đây phản ánh kinh nghiệm đúc kết về khí hậu, thời tiết trong nông nghiệp của người xưa?",
+                "options": {"A": "Chuồn chuồn bay thấp thì mưa, bay cao thì nắng, bay vừa thì râm", "B": "Ăn quả nhớ kẻ trồng cây", "C": "Uống nước nhớ nguồn", "D": "Lá lành đùm lá rách"},
+                "correct_answer": "A",
+                "explanation": "Đây là câu tục ngữ đúc kết kinh nghiệm dân gian quan sát tập tính động vật để dự báo thời tiết."
+            },
+            {
+                "prompt": "Xác định lỗi diễn đạt lặp từ (thừa từ) trong câu: 'Nhìn chung, đa số phần lớn các bạn học sinh trong lớp đều đồng thuận.'",
+                "options": {
+                    "A": "Dùng trùng lặp hai từ đồng nghĩa 'đa số' và 'phần lớn'",
+                    "B": "Thiếu thành phần trạng ngữ chỉ thời gian",
+                    "C": "Sai trật tự vị ngữ và bổ ngữ",
+                    "D": "Dùng sai từ 'đồng thuận'"
+                },
+                "correct_answer": "A",
+                "explanation": "'Đa số' và 'phần lớn' mang cùng nét nghĩa biểu thị số đông, xếp liền nhau tạo ra lỗi thừa từ, trùng lặp ngữ nghĩa."
+            },
+            {
+                "prompt": "Từ ngữ nào mang sắc thái biểu cảm trang trọng, phù hợp dùng trong văn bản chính luận, học thuật?",
+                "options": {"A": "Minh chứng", "B": "Bằng cớ", "C": "Cớ sao", "D": "Cớ sự"},
+                "correct_answer": "A",
+                "explanation": "'Minh chứng' là thuật ngữ Hán-Việt trang trọng, chuẩn mực cho văn phong chính luận và nghiên cứu khoa học."
+            },
+            {
+                "prompt": "Phép liên kết câu nào được sử dụng giữa hai câu văn sau: 'Hội nghị COP28 đã đạt được nhiều đồng thuận quan trọng. Sự kiện này mở ra chương mới trong cam kết giảm phát thải toàn cầu.'?",
+                "options": {"A": "Phép thế", "B": "Phép lặp từ vựng", "C": "Phép liên tưởng", "D": "Phép nghịch đối"},
+                "correct_answer": "A",
+                "explanation": "Cụm 'Sự kiện này' thay thế cho 'Hội nghị COP28' ở câu trước, đó là phép thế đại từ."
+            },
+            {
+                "prompt": "Hình tượng 'cây xà nu' trong tác phẩm văn học của nhà văn Nguyễn Trung Thành tượng trưng chủ yếu cho phẩm chất gì của con người Tây Nguyên?",
+                "options": {
+                    "A": "Sức sống mãnh liệt, tinh thần bất khuất, khát vọng tự do và tinh thần đoàn kết",
+                    "B": "Vẻ đẹp thơ mộng, lãng mạn của núi rừng đại ngàn",
+                    "C": "Nỗi đau thương mất mát vô tận của buôn làng trong chiến tranh",
+                    "D": "Sự bí ẩn, hiểm trở của địa hình rừng núi Trường Sơn"
+                },
+                "correct_answer": "A",
+                "explanation": "Cây xà nu sinh sôi nảy nở khỏe khoắn, không viên đạn nào triệt phá được, tượng trưng cho sức sống bất diệt của con người Tây Nguyên."
+            },
+            {
+                "prompt": "Trong các từ sau, từ nào là từ ghép đẳng lập?",
+                "options": {"A": "Nhà cửa", "B": "Xe đạp", "C": "Tàu hỏa", "D": "Bút bi"},
+                "correct_answer": "A",
+                "explanation": "'Nhà' và 'cửa' là hai hình vị độc lập, bình đẳng về ngữ nghĩa, ghép lại tạo nghĩa khái quát toàn thể chỗ ở."
+            },
+            {
+                "prompt": "Văn bản nào sau đây thuộc thể loại văn học trung đại Việt Nam được viết theo thể văn nghị luận chính trị mẫu mực?",
+                "options": {"A": "Bình Ngô đại cáo (Nguyễn Trãi)", "B": "Truyện Kiều (Nguyễn Du)", "C": "Chuyện người con gái Nam Xương (Nguyễn Dữ)", "D": "Độc Tiểu Thanh kí (Nguyễn Du)"},
+                "correct_answer": "A",
+                "explanation": "'Bình Ngô đại cáo' được coi là bản tuyên ngôn độc lập thứ hai, áng thiên cổ hùng văn nghị luận chính trị xuất sắc bậc nhất."
+            },
+            {
+                "prompt": "Trong các phương án dưới đây, nhóm từ nào bao gồm toàn bộ các từ láy tượng thanh?",
+                "options": {"A": "Lách cách, róc rách, ào ào", "B": "Thướt tha, nhỏ nhắn, xinh xắn", "C": "Liêu xiêu, lênh khênh, gập ghềnh", "D": "Mênh mông, bao la, bát ngát"},
+                "correct_answer": "A",
+                "explanation": "'Lách cách', 'róc rách', 'ào ào' đều mô phỏng âm thanh thực tế trong đời sống tự nhiên."
             }
         ]
         chosen = templates[idx % len(templates)]

@@ -425,16 +425,17 @@ const app = {
     if (!text) return '';
     let str = String(text);
 
-    // Tách chuỗi theo các khối đã có dấu $ (ví dụ ... hoặc $...$)
+    // Tách chuỗi theo các khối đã có dấu $ (ví dụ $$...$$ hoặc $...$)
     // để không can thiệp làm hỏng các công thức đã bọc chuẩn
     const tokens = str.split(/(\$\$[\s\S]*?\$\$|\$[^\$\n]+?\$)/g);
     
     // Pattern tìm các công thức LaTeX trần chưa được bọc dấu $
-    const nakedPattern = /(\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)))/g;
+    // Bao gồm: số + \text{...}, \frac, \sqrt, \int, \log, \vec, \lim, \sum, \text{...}, ký hiệu hy lạp, quan hệ toán học
+    const nakedPattern = /(\b\d+(?:[.,]\d+)?\s*\\text\{[^{}]+\}(?:\^[^{}\s]+)?|\b[a-zA-Z]\s*=\s*\\(?:frac|sqrt|int|log|vec|lim|sum)\b[^\$\n]+|\\(?:frac\{[^{}]+\}\{[^{}]+\}|sqrt\{[^{}]+\}|int_\{?[^{}\s]+\}?^\{?[^{}\s]+\}?|log_\{?[^{}\s]+\}?\([^{}]+\)|text\{[^{}]+\}(?:\^[^{}\s]+)?|(?:alpha|beta|gamma|delta|Delta|lambda|Lambda|mu|pi|rho|sigma|omega|Omega|infty|approx|ne|le|ge|pm|times|cdot|perp|parallel|angle)\b))/g;
 
     const parts = tokens.map(token => {
       if (!token) return '';
-      // Nếu đã nằm trong $...$ hoặc ..., giữ nguyên 100%
+      // Nếu đã nằm trong $...$ hoặc $$...$$, giữ nguyên 100%
       if (token.startsWith('$') && token.endsWith('$')) {
         return token;
       }
@@ -469,6 +470,10 @@ const app = {
     } else if (tabName === 'generator') {
       if (typeof generatorStudio !== 'undefined' && generatorStudio.loadNextExamTitle) {
         generatorStudio.loadNextExamTitle();
+      }
+    } else if (tabName === 'analytics') {
+      if (typeof analyticsView !== 'undefined' && analyticsView.loadLatest) {
+        analyticsView.loadLatest();
       }
     } else if (tabName === 'settings') {
       this.loadSettingsStatus();

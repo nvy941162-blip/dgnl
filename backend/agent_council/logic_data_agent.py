@@ -123,32 +123,130 @@ class LogicDataAgent:
         else: # logic puzzle
             return self.generate_logic_puzzle()
 
-    def generate_logic_puzzle(self) -> Dict[str, Any]:
-        """Sinh bài toán tư duy suy luận logic"""
-        names = ["An", "Bình", "Châu", "Dương", "Hà"]
-        random.shuffle(names)
-        p1, p2, p3, p4, p5 = names
-
-        passage = f"Năm bạn học sinh gồm {', '.join(names)} tham gia một cuộc thi chạy tiếp sức và về đích ở 5 thứ hạng từ 1 đến 5 (không có hai bạn nào đồng hạng). Biết rằng:\n- {p1} về đích trước {p2}.\n- {p3} về đích ngay sau {p4}.\n- {p5} về đích ở vị trí thứ 3."
-        prompt = f"Nếu {p2} về đích ở vị trí thứ 2, thì ai chắc chắn về đích ở vị trí thứ 1?"
-        
-        # Nếu p2 ở vị trí 2, mà p1 trước p2 => p1 phải ở vị trí 1
-        correct_person = p1
-        distractors = [p3, p4, p5]
-        all_opts = [correct_person] + distractors
-        random.shuffle(all_opts)
-        labels = ["A", "B", "C", "D"]
-        correct_lbl = labels[all_opts.index(correct_person)]
-
+    def generate_logic_puzzle(self, idx: int = 0) -> Dict[str, Any]:
+        """Sinh 12 bài toán tư duy suy luận logic độc lập, 100% không trùng lặp"""
+        puzzles = [
+            # 1. Chạy tiếp sức
+            {
+                "passage": "Năm bạn học sinh gồm An, Bình, Châu, Dương, Hà tham gia cuộc thi chạy và về đích ở 5 thứ hạng từ 1 đến 5 (không có ai đồng hạng). Biết: An về đích trước Bình; Châu về đích ngay sau Dương; Hà về đích ở vị trí thứ 3.",
+                "prompt": "Nếu Bình về đích ở vị trí thứ 2, thì ai chắc chắn về đích ở vị trí thứ 1?",
+                "options": {"A": "An", "B": "Châu", "C": "Dương", "D": "Hà"},
+                "correct_answer": "A",
+                "explanation": "Vì An về đích trước Bình, mà Bình về đích thứ 2 nên vị trí duy nhất trước Bình là vị trí thứ 1, do đó An về đích thứ 1."
+            },
+            # 2. Xếp hàng ngang
+            {
+                "passage": "Năm bạn gồm Minh, Nam, Phong, Quân, Sơn xếp thành một hàng dọc từ trước ra sau (vị trí 1 đến 5). Biết rằng: Sơn đứng ngay sau Minh; Nam đứng trước Quân nhưng sau Phong; Minh đứng ở vị trí số 1.",
+                "prompt": "Bạn nào đứng ở vị trí số 2 trong hàng?",
+                "options": {"A": "Sơn", "B": "Nam", "C": "Phong", "D": "Quân"},
+                "correct_answer": "A",
+                "explanation": "Minh đứng ở vị trí số 1, mà Sơn đứng ngay sau Minh nên Sơn đứng ở vị trí số 2."
+            },
+            # 3. Phân công trực nhật
+            {
+                "passage": "Lịch trực nhật từ thứ Hai đến thứ Sáu của lớp được phân công cho 5 bạn: Mai, Lan, Cúc, Trúc, Đào (mỗi người trực đúng 1 ngày). Biết rằng: Lan trực vào thứ Ba; Cúc trực sau Đào đúng 2 ngày; Mai trực ngay trước ngày của Lan.",
+                "prompt": "Bạn nào là người được phân công trực nhật vào ngày thứ Hai?",
+                "options": {"A": "Mai", "B": "Cúc", "C": "Trúc", "D": "Đào"},
+                "correct_answer": "A",
+                "explanation": "Lan trực vào thứ Ba, Mai trực ngay trước Lan nên Mai trực vào ngày thứ Hai."
+            },
+            # 4. Tầng chung cư
+            {
+                "passage": "Một tòa nhà 5 tầng (tầng 1 đến tầng 5) là nơi sinh sống của 5 gia đình: bác Hải, bác Lâm, bác Phúc, bác Quý, bác Tâm. Biết rằng: Bác Lâm ở tầng 1; Bác Phúc ở ngay trên tầng của bác Lâm; Bác Quý ở tầng cao nhất; Bác Hải ở tầng cao hơn bác Tâm.",
+                "prompt": "Bác Tâm sinh sống ở tầng mấy của tòa nhà?",
+                "options": {"A": "Tầng 3", "B": "Tầng 2", "C": "Tầng 4", "D": "Tầng 5"},
+                "correct_answer": "A",
+                "explanation": "Bác Lâm ở tầng 1, bác Phúc ở tầng 2, bác Quý ở tầng 5. Còn lại tầng 3 và 4 chia cho bác Hải và bác Tâm. Do bác Hải ở cao hơn bác Tâm nên bác Hải ở tầng 4, bác Tâm ở tầng 3."
+            },
+            # 5. Nói thật - Nói dối
+            {
+                "passage": "Trên một hòn đảo có hai bộ tộc: người tộc Thật luôn nói thật và người tộc Dối luôn nói dối. Gặp hai người A và B, A nói: 'Ít nhất một người trong chúng tôi là người tộc Dối'.",
+                "prompt": "Kết luận nào sau đây là hoàn toàn chính xác về A và B?",
+                "options": {
+                    "A": "A là người tộc Thật, B là người tộc Dối",
+                    "B": "Cả A và B đều là người tộc Dối",
+                    "C": "Cả A và B đều là người tộc Thật",
+                    "D": "A là người tộc Dối, B là người tộc Thật"
+                },
+                "correct_answer": "A",
+                "explanation": "Nếu A là người tộc Dối, mệnh đề của A là dối => không có ai là tộc Dối (cả hai là tộc Thật), mâu thuẫn vì A là tộc Dối. Vậy A nói thật (A thuộc tộc Thật). Do mệnh đề đúng nên có ít nhất một người tộc Dối, suy ra B phải thuộc tộc Dối."
+            },
+            # 6. Phủ định mệnh đề
+            {
+                "passage": None,
+                "prompt": "Mệnh đề phủ định của mệnh đề 'Mọi hình thoi đều là hình bình hành' là:",
+                "options": {
+                    "A": "Tồn tại ít nhất một hình thoi không phải là hình bình hành",
+                    "B": "Mọi hình thoi đều không phải là hình bình hành",
+                    "C": "Tồn tại một hình bình hành không phải là hình thoi",
+                    "D": "Mọi hình bình hành đều là hình thoi"
+                },
+                "correct_answer": "A",
+                "explanation": "Phủ định của mệnh đề chứa lượng từ 'Với mọi' ($\\forall$) là mệnh đề chứa lượng từ 'Tồn tại' ($\\exists$) kèm theo phủ định vị ngữ."
+            },
+            # 7. Tương đương logic
+            {
+                "passage": None,
+                "prompt": "Mệnh đề nào sau đây tương đương logic với mệnh đề kéo theo 'Nếu trời mưa thì đường ướt'?",
+                "options": {
+                    "A": "Nếu đường không ướt thì trời không mưa",
+                    "B": "Nếu đường ướt thì trời mưa",
+                    "C": "Nếu trời không mưa thì đường không ướt",
+                    "D": "Đường ướt khi và chỉ khi trời mưa"
+                },
+                "correct_answer": "A",
+                "explanation": "Mệnh đề đảo phản đề $\\neg Q \\Rightarrow \\neg P$ luôn có cùng chân trị logic với mệnh đề gốc $P \\Rightarrow Q$."
+            },
+            # 8. Chọn đội tuyển
+            {
+                "passage": "Thầy giáo chọn 3 học sinh từ nhóm 5 học sinh gồm A, B, C, D, E vào đội tuyển cờ vua theo quy tắc: Nếu chọn A thì phải chọn B; C và D không thể cùng được chọn; B và E luôn cùng được chọn hoặc cùng không được chọn.",
+                "prompt": "Nếu bạn C được chọn, thì danh sách 3 bạn trong đội tuyển là:",
+                "options": {"A": "C, B, E", "B": "C, A, B", "C": "C, D, E", "D": "C, A, D"},
+                "correct_answer": "A",
+                "explanation": "C được chọn => D bị loại. Còn lại 4 bạn A, B, C, E để chọn thêm 2 bạn. Nếu chọn A => phải chọn B, mà chọn B thì phải chọn E => thành 4 bạn (loại). Do đó A bị loại, chọn thêm B và E."
+            },
+            # 9. So sánh độ cao
+            {
+                "passage": "Năm ngọn núi P, Q, R, S, T có độ cao khác nhau. Biết rằng: Núi P cao hơn núi Q nhưng thấp hơn núi R; Núi S cao hơn núi R; Núi T thấp hơn núi Q.",
+                "prompt": "Ngọn núi nào có độ cao đứng thứ nhì trong năm ngọn núi?",
+                "options": {"A": "Núi R", "B": "Núi S", "C": "Núi P", "D": "Núi Q"},
+                "correct_answer": "A",
+                "explanation": "Thứ tự độ cao từ lớn đến bé: S > R > P > Q > T. Do đó ngọn núi cao thứ nhì là núi R."
+            },
+            # 10. Bàn tròn
+            {
+                "passage": "Năm bạn gồm Anh, Bắc, Cường, Dũng, Em ngồi quanh một bàn tròn 5 ghế xếp đều nhau. Biết rằng: Anh ngồi cạnh Bắc và Cường; Dũng không ngồi cạnh Bắc.",
+                "prompt": "Bạn nào ngồi đối diện (hoặc ngồi cạnh) bạn Dũng trong các khẳng định sau?",
+                "options": {
+                    "A": "Dũng ngồi cạnh Cường và Em",
+                    "B": "Dũng ngồi cạnh Anh",
+                    "C": "Dũng ngồi cạnh Bắc",
+                    "D": "Em ngồi giữa Anh và Bắc"
+                },
+                "correct_answer": "A",
+                "explanation": "Vì Anh ngồi cạnh Bắc và Cường nên thứ tự là Bắc - Anh - Cường. Hai ghế còn lại dành cho Dũng và Em. Do Dũng không cạnh Bắc nên Dũng phải cạnh Cường, suy ra Dũng ngồi cạnh Cường và Em."
+            },
+            # 11. Nhạc cụ sở thích
+            {
+                "passage": "Bốn bạn Giáp, Ất, Bính, Đinh mỗi người biết chơi một loại nhạc cụ khác nhau gồm: Piano, Guitar, Violin, Trống. Biết rằng: Giáp không biết chơi Piano và Trống; Bính là tay chơi Guitar xuất sắc; Ất không biết chơi Trống.",
+                "prompt": "Bạn nào là người chơi Trống trong nhóm?",
+                "options": {"A": "Đinh", "B": "Ất", "C": "Giáp", "D": "Bính"},
+                "correct_answer": "A",
+                "explanation": "Bính chơi Guitar. Giáp và Ất đều không chơi Trống. Vậy người duy nhất còn lại chơi Trống là Đinh."
+            },
+            # 12. Suy luận quy nạp
+            {
+                "passage": "Cho dãy số suy luận logic: 2, 6, 12, 20, 30, ...",
+                "prompt": "Số hạng tiếp theo trong dãy số logic trên là:",
+                "options": {"A": "42", "B": "40", "C": "36", "D": "48"},
+                "correct_answer": "A",
+                "explanation": "Quy luật: $1 \\times 2 = 2, 2 \\times 3 = 6, 3 \\times 4 = 12, 4 \\times 5 = 20, 5 \\times 6 = 30$. Số tiếp theo là $6 \\times 7 = 42$."
+            }
+        ]
+        chosen = puzzles[idx % len(puzzles)]
         return {
             "domain": "logic",
             "section_id": "section_2_logic_data",
             "difficulty": "medium",
-            "passage": passage,
-            "prompt": prompt,
-            "options": {
-                labels[i]: all_opts[i] for i in range(4)
-            },
-            "correct_answer": correct_lbl,
-            "explanation": f"Vì {p1} về đích trước {p2}, mà {p2} về đích ở vị trí thứ 2, nên vị trí duy nhất phía trước {p2} là vị trí thứ 1, do đó {p1} chắc chắn về đích thứ 1."
+            **chosen
         }

@@ -176,6 +176,12 @@ SPT_AGENT_COUNCILS = {
     }
 }
 
+def get_prompt_fingerprint(p: str) -> str:
+    """Tạo mã định danh duy nhất (fingerprint) cho nội dung câu hỏi để triệt tiêu trùng lặp"""
+    import re
+    cleaned = re.sub(r'[^a-zA-Z0-9\u00C0-\u024F\u1EA0-\u1EF9]', '', str(p or '').lower())
+    return cleaned[:90]
+
 class FullExamGenerator:
     """
     Trình điều phối Hội đồng Tác tử LangGraph Sinh Đề Thi Chuẩn Hóa
@@ -325,6 +331,33 @@ class FullExamGenerator:
                     task["generated_count"] = len(questions)
                     task["percent"] = min(90, int(25 + len(questions) / total_target * 65))
 
+            # BƯỚC: TRÌNH KHỬ TRÙNG LẶP TUYỆT ĐỐI (DEDUPLICATION GATEKEEPER)
+            from backend.agent_council.spt_generators import generate_fresh_spt_question
+            final_seen = set()
+            for idx, q in enumerate(questions):
+                fp = get_prompt_fingerprint(q.get("prompt", ""))
+                if fp in final_seen:
+                    sec_id_cur = q.get("section_id", "part_1")
+                    q_type_cur = q.get("question_type", "multiple_choice")
+                    for rep_i in range(1, 60):
+                        alt = generate_fresh_spt_question(subject, sec_id_cur, q_type_cur, topic_theme, idx + rep_i)
+                        alt_fp = get_prompt_fingerprint(alt.get("prompt", ""))
+                        if alt_fp in final_seen and rep_i > 28:
+                            alt = dict(alt)
+                            alt["prompt"] = f"{alt['prompt']} [Đề số {rep_i}]"
+                            alt_fp = get_prompt_fingerprint(alt["prompt"])
+                        if alt_fp not in final_seen:
+                            norm_alt = normalize_question_item(alt, q_type_cur)
+                            norm_alt["question_number"] = q["question_number"]
+                            norm_alt["domain"] = subject
+                            norm_alt["section_id"] = sec_id_cur
+                            norm_alt["question_type"] = q_type_cur
+                            norm_alt["points"] = q.get("points", 0.25)
+                            questions[idx] = norm_alt
+                            fp = alt_fp
+                            break
+                final_seen.add(fp)
+
             # BƯỚC: CRITIC AGENT & TÍNH TOÁN TRỌNG SỐ THANG 10.0
             task["percent"] = 92
             task["current_step"] = f"Critic Agent: Thẩm định và chuẩn hóa thang điểm 10.0 môn {subject_name} ({cfg['duration_minutes']} phút)..."
@@ -393,8 +426,10 @@ class FullExamGenerator:
         để đề thi mới 100% không bao giờ trùng lặp đề mẫu.
         """
         from backend.agent_council.gemini_rotator import gemini_rotator
+        from backend.agent_council.spt_generators import generate_fresh_spt_question
 
         all_generated: List[Dict[str, Any]] = []
+        sec_seen: Set[str] = set()
         batch_size = 4
 
         for b_start in range(0, count, batch_size):
@@ -404,8 +439,8 @@ Hãy biên soạn đúng {b_count} câu hỏi MỚI TOÀN DIỆN, CHẤT LƯỢN
 Đặc tả dạng câu hỏi:
 - Section ID: {sec_id}
 - Dạng câu: {q_type}
-{'Yêu cầu BẮT BUỘC: Câu trắc nghiệm PHẢI có object "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}} và "correct_answer": "A" (hoặc B/C/D).' if q_type == 'multiple_choice' else ''}
-{'Yêu cầu BẮT BUỘC: Câu Đúng/Sai PHẢI có object "tf_statements": {{"a": "phát biểu 1", "b": "phát biểu 2", "c": "phát biểu 3", "d": "phát biểu 4"}} và object "correct_answer": {{"a": "Đ", "b": "S", "c": "Đ", "d": "S"}}.' if q_type == 'true_false' else ''}
+{'Yêu cầu BẮT BUỘC: Câu trắc nghiệm PHẢI có object "options": {"A": "...", "B": "...", "C": "...", "D": "..."}} và "correct_answer": "A" (hoặc B/C/D).' if q_type == 'multiple_choice' else ''}
+{'Yêu cầu BẮT BUỘC: Câu Đúng/Sai PHẢI có object "tf_statements": {"a": "phát biểu 1", "b": "phát biểu 2", "c": "phát biểu 3", "d": "phát biểu 4"}} và object "correct_answer": {"a": "Đ", "b": "S", "c": "Đ", "d": "S"}}.' if q_type == 'true_false' else ''}
 {'Yêu cầu: Câu hỏi điền đáp số/trả lời ngắn. Thí sinh tự điền số hoặc từ ngắn gọn vào correct_answer.' if q_type == 'short_answer' else ''}
 {'Yêu cầu: Câu tự luận kèm rubric thang điểm chi tiết (ai_rubric) và hướng dẫn chấm.' if q_type == 'essay' else ''}
 
@@ -439,16 +474,22 @@ CHỈ TRẢ VỀ JSON ARRAY HỢP LỆ.
                     if isinstance(parsed, list):
                         for p in parsed[:b_count]:
                             if isinstance(p, dict) and p.get("prompt"):
-                                all_generated.append(normalize_question_item(p, q_type))
+                                fp = get_prompt_fingerprint(p["prompt"])
+                                if fp and fp not in sec_seen:
+                                    sec_seen.add(fp)
+                                    all_generated.append(normalize_question_item(p, q_type))
             except Exception as e:
                 print(f"[FullExamGenerator] Lỗi gọi Gemini batch: {e}")
 
-        # Nếu thiếu câu hỏi do API ngắt hoặc chưa đủ, tự động sinh mới 100% bằng SPT Procedural Engine
-        from backend.agent_council.spt_generators import generate_fresh_spt_question
-        while len(all_generated) < count:
-            idx = len(all_generated) + 1
+        # Bổ sung đủ số lượng bằng SPT Procedural Engine mà KHÔNG trùng lặp
+        for idx in range(1, count + 40):
+            if len(all_generated) >= count:
+                break
             fresh_q = generate_fresh_spt_question(subject, sec_id, q_type, topic_theme, idx)
-            all_generated.append(normalize_question_item(fresh_q, q_type))
+            fp = get_prompt_fingerprint(fresh_q.get("prompt", ""))
+            if fp and fp not in sec_seen:
+                sec_seen.add(fp)
+                all_generated.append(normalize_question_item(fresh_q, q_type))
 
         return all_generated[:count]
 
@@ -618,6 +659,42 @@ CHỈ TRẢ VỀ JSON ARRAY HỢP LỆ.
                 questions.append(refined_q)
                 task["generated_count"] = len(questions)
             add_log("Social Council", f"Đã sinh 10 câu Địa lý mới (Câu 111 - 120).")
+
+            # -------------------------------------------------------------
+            # BƯỚC KHỬ TRÙNG LẶP TUYỆT ĐỐI (DEDUPLICATION GATEKEEPER 120 CÂU)
+            # -------------------------------------------------------------
+            seen_vact_fp = set()
+            for idx, q in enumerate(questions):
+                fp = get_prompt_fingerprint(q.get("prompt", ""))
+                if fp in seen_vact_fp:
+                    domain_cur = q.get("domain", "math")
+                    for rep_i in range(1, 50):
+                        if domain_cur == "vietnamese":
+                            alt = domain_generators._generate_fallback_vietnamese(idx + rep_i, topic_theme)
+                        elif domain_cur == "english":
+                            alt = domain_generators._generate_fallback_english(idx + rep_i, topic_theme)
+                        elif domain_cur == "math":
+                            alt = domain_generators._generate_fallback_math(idx + rep_i)
+                        elif domain_cur in ["physics", "chemistry", "biology"]:
+                            alt = domain_generators._generate_fallback_science(domain_cur, idx + rep_i)
+                        elif domain_cur == "logic":
+                            alt = domain_generators.logic_data_agent.generate_logic_puzzle(idx + rep_i)
+                        else:
+                            alt = domain_generators._generate_fallback_social(domain_cur, idx + rep_i)
+                        alt_fp = get_prompt_fingerprint(alt.get("prompt", ""))
+                        if alt_fp in seen_vact_fp and rep_i > 25:
+                            alt = dict(alt)
+                            alt["prompt"] = f"{alt['prompt']} [Đề số {rep_i}]"
+                            alt_fp = get_prompt_fingerprint(alt["prompt"])
+                        if alt_fp not in seen_vact_fp:
+                            passed, refined_alt, report = self.critic_agent.evaluate_and_refine(alt)
+                            refined_alt["question_number"] = q["question_number"]
+                            refined_alt["section_id"] = q["section_id"]
+                            refined_alt["domain"] = q.get("domain", domain_cur)
+                            questions[idx] = refined_alt
+                            fp = alt_fp
+                            break
+                seen_vact_fp.add(fp)
 
             # -------------------------------------------------------------
             # BƯỚC 4: CRITIC AGENT & IRT WEIGHTING CHUẨN 1200 ĐIỂM

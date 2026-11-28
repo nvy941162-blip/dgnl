@@ -3,6 +3,51 @@ const analyticsView = {
   currentFilter: 'all',
   submissionData: null,
 
+  async loadLatest() {
+    try {
+      const user = (typeof authManager !== 'undefined') ? authManager.currentUser : null;
+      const userId = user?.id || '';
+      const candName = user?.full_name || '';
+
+      let url = '/api/submissions/latest';
+      const params = new URLSearchParams();
+      if (userId) params.append('user_id', userId);
+      else if (candName) params.append('candidate_name', candName);
+
+      if (params.toString()) url += '?' + params.toString();
+
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.has_submission && json.data) {
+        this.renderReport(json.data);
+      } else {
+        const emptyNotice = document.getElementById('analytics-empty-notice');
+        const reportContent = document.getElementById('analytics-report-content');
+        if (emptyNotice) emptyNotice.style.display = 'block';
+        if (reportContent) reportContent.style.display = 'none';
+      }
+    } catch (err) {
+      console.error('Failed to load latest submission:', err);
+    }
+  },
+
+  async loadSubmission(submissionId) {
+    if (!submissionId) return;
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/analytics`);
+      if (!res.ok) {
+        alert('Không thể tải bài thi này.');
+        return;
+      }
+      const data = await res.json();
+      this.renderReport(data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      alert('Lỗi tải bài làm: ' + err.message);
+    }
+  },
+
   renderReport(data) {
     this.submissionData = data;
 
@@ -331,9 +376,9 @@ const analyticsView = {
       historyContainer.style.display = 'block';
       if (historyList) {
         historyList.innerHTML = history.slice(0, 10).map(h => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" onclick="analyticsView.loadSubmission('${h.id}')" title="Nhấp để xem lại bài làm chi tiết">
             <div>
-              <strong style="color: var(--primary);">${h.exam_title}</strong>
+              <strong style="color: var(--primary);">${h.exam_title}</strong> <span style="font-size:0.75rem; color:#6366f1; background:#eef2ff; padding:2px 6px; border-radius:4px;">Xem lại 🔍</span>
               <div style="font-size: 0.8rem; color: #64748b;">${h.submitted_at} • Thời gian: ${Math.round(h.time_spent_seconds / 60)} phút • Thí sinh: ${h.candidate_name || 'Học sinh'}</div>
             </div>
             <div style="text-align: right;">
@@ -345,13 +390,6 @@ const analyticsView = {
       }
     } catch (e) {
       console.warn("Could not load history", e);
-    }
-  },
-          </div>
-        `).join('');
-      }
-    } catch (e) {
-      console.warn("Could not load history chart:", e);
     }
   },
 

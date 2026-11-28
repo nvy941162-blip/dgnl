@@ -122,7 +122,7 @@ class SubmitExamRequest(BaseModel):
     candidate_name: Optional[str] = "Thí sinh ĐGNL"
     user_id: Optional[str] = None
     answers: Dict[str, Any] # { "1": "A", "17": {"a": "Đ", ...}, ... }
-    time_spent_seconds: int
+    time_spent_seconds: Optional[int] = 0
 
 class GenerateAgentRequest(BaseModel):
     topic: str
@@ -575,6 +575,78 @@ def submit_exam(exam_id: str, req: SubmitExamRequest, db: Session = Depends(get_
         "radar_image": radar_image_base64,
         "ai_advice": ai_advice
     }
+
+def format_submission_for_analytics(sub: SubmissionModel, db: Session):
+    results = json.loads(sub.results_json) if sub.results_json else {}
+    radar_data = json.loads(sub.radar_data_json) if sub.radar_data_json else {}
+    competency = radar_data.get("competency", {})
+    radar_image = radar_data.get("radar_image", "")
+    
+    # If radar_image is missing or empty, regenerate dynamically
+    if not radar_image and "domain_stats" in results:
+        try:
+            radar_image = generate_radar_chart_base64(
+                results["domain_stats"],
+                is_spt=results.get("is_spt", False)
+            )
+        except Exception as e:
+            print(f"Error generating radar image on format: {e}")
+
+    # If competency is missing, recalculate it
+    if not competency and "domain_stats" in results:
+        try:
+            exam = db.query(ExamModel).filter(ExamModel.id == sub.exam_id).first()
+            exam_max = exam.max_score if exam and exam.max_score else (10.0 if results.get("is_spt") else 1200.0)
+            competency = calculate_competency_insights(
+                results["domain_stats"],
+                sub.total_score,
+                max_score=exam_max,
+                is_spt=results.get("is_spt", False)
+            )
+        except Exception as e:
+            print(f"Error generating competency on format: {e}")
+
+    exam = db.query(ExamModel).filter(ExamModel.id == sub.exam_id).first()
+    exam_title = exam.title if exam else "Bài thi ĐGNL"
+
+    return {
+        "submission_id": sub.id,
+        "exam_id": sub.exam_id,
+        "exam_title": exam_title,
+        "candidate_name": sub.candidate_name,
+        "time_spent_seconds": sub.time_spent_seconds,
+        "grade_report": results,
+        "competency_analysis": competency,
+        "radar_image": radar_image,
+        "ai_advice": sub.ai_advice,
+        "submitted_at": sub.submitted_at.strftime("%d/%m/%Y %H:%M") if sub.submitted_at else ""
+    }
+
+@app.get("/api/submissions/latest")
+def get_latest_submission(user_id: Optional[str] = None, candidate_name: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(SubmissionModel)
+    sub = None
+    if user_id:
+        sub = query.filter(SubmissionModel.user_id == user_id).order_by(SubmissionModel.submitted_at.desc()).first()
+    elif candidate_name:
+        sub = query.filter(SubmissionModel.candidate_name == candidate_name).order_by(SubmissionModel.submitted_at.desc()).first()
+
+    # Fallback to latest overall submission in the system if no user-specific submission found
+    if not sub:
+        sub = db.query(SubmissionModel).order_by(SubmissionModel.submitted_at.desc()).first()
+
+    if not sub:
+        return {"has_submission": False, "data": None}
+
+    formatted = format_submission_for_analytics(sub, db)
+    return {"has_submission": True, "data": formatted}
+
+@app.get("/api/submissions/{submission_id}/analytics")
+def get_submission_analytics(submission_id: str, db: Session = Depends(get_db)):
+    sub = db.query(SubmissionModel).filter(SubmissionModel.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Không tìm thấy kết quả làm bài.")
+    return format_submission_for_analytics(sub, db)
 
 @app.get("/api/submissions/{submission_id}")
 def get_submission(submission_id: str, user_id: Optional[str] = None, db: Session = Depends(get_db)):

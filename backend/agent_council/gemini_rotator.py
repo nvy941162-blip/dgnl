@@ -78,8 +78,9 @@ class GeminiKeyRotator:
                 if now >= status.get("cooldown_until", 0.0):
                     return key, self.current_index
 
-            # Nếu tất cả key đều đang trong thời gian cooldown, trả về None để tôn trọng thời gian hạ nhiệt
-            return None
+            # Nếu tất cả key đều đang trong thời gian cooldown, lấy key có thời gian cooldown sắp hết nhất
+            earliest_key = min(self.keys, key=lambda k: self.key_status.get(k, {}).get("cooldown_until", 0.0))
+            return earliest_key, self.current_index
 
     def mark_key_failure(self, key: str, is_rate_limit: bool = True):
         """Đánh dấu key bị lỗi để chuyển sang cooldown (ví dụ: 60 giây nếu 429)"""

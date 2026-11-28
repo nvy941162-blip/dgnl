@@ -17,58 +17,34 @@ class Resp:
         return json_module.loads(self._content)
 
 def get_client():
-    # 1. Thử kết nối live server nếu đang chạy
-    try:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open("http://127.0.0.1:8050/api/health", timeout=1.0) as resp:
-            if resp.status == 200:
-                print("[OK] Kết nối trực tiếp máy chủ đang chạy tại http://127.0.0.1:8050")
-                class LiveClient:
-                    def get(self, path):
-                        req = urllib.request.Request(f"http://127.0.0.1:8050{path}")
-                        try:
-                            with opener.open(req) as r:
-                                return Resp(r.status, r.read().decode('utf-8'))
-                        except urllib.error.HTTPError as e:
-                            return Resp(e.code, e.read().decode('utf-8'))
-
-                    def post(self, path, json_data=None):
-                        data = json_module.dumps(json_data).encode('utf-8') if json_data is not None else None
-                        req = urllib.request.Request(f"http://127.0.0.1:8050{path}", data=data, headers={"Content-Type": "application/json"} if json_data is not None else {}, method="POST")
-                        try:
-                            with opener.open(req) as r:
-                                return Resp(r.status, r.read().decode('utf-8'))
-                        except urllib.error.HTTPError as e:
-                            return Resp(e.code, e.read().decode('utf-8'))
-
-                    def delete(self, path):
-                        req = urllib.request.Request(f"http://127.0.0.1:8050{path}", method="DELETE")
-                        try:
-                            with opener.open(req) as r:
-                                return Resp(r.status, r.read().decode('utf-8'))
-                        except urllib.error.HTTPError as e:
-                            return Resp(e.code, e.read().decode('utf-8'))
-
-                return LiveClient()
-    except Exception:
-        pass
-
-    # 2. Sử dụng FastAPI TestClient in-process nếu chưa chạy uvicorn
-    from fastapi.testclient import TestClient
-    from backend.app import app
-    print("[OK] Sử dụng FastAPI TestClient (In-Process)")
-
-    class WrappedTestClient:
-        def __init__(self, c):
-            self._c = c
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    class LiveClient:
         def get(self, path):
-            return self._c.get(path)
-        def post(self, path, json_data=None):
-            return self._c.post(path, json=json_data)
-        def delete(self, path):
-            return self._c.delete(path)
+            req = urllib.request.Request(f"http://127.0.0.1:8050{path}")
+            try:
+                with opener.open(req) as r:
+                    return Resp(r.status, r.read().decode('utf-8'))
+            except urllib.error.HTTPError as e:
+                return Resp(e.code, e.read().decode('utf-8'))
 
-    return WrappedTestClient(TestClient(app))
+        def post(self, path, json_data=None):
+            data = json_module.dumps(json_data).encode('utf-8') if json_data is not None else None
+            req = urllib.request.Request(f"http://127.0.0.1:8050{path}", data=data, headers={"Content-Type": "application/json"} if json_data is not None else {}, method="POST")
+            try:
+                with opener.open(req) as r:
+                    return Resp(r.status, r.read().decode('utf-8'))
+            except urllib.error.HTTPError as e:
+                return Resp(e.code, e.read().decode('utf-8'))
+
+        def delete(self, path):
+            req = urllib.request.Request(f"http://127.0.0.1:8050{path}", method="DELETE")
+            try:
+                with opener.open(req) as r:
+                    return Resp(r.status, r.read().decode('utf-8'))
+            except urllib.error.HTTPError as e:
+                return Resp(e.code, e.read().decode('utf-8'))
+
+    return LiveClient()
 
 def test_all_dhsp_hn_subjects():
     client = get_client()
@@ -95,8 +71,7 @@ def test_all_dhsp_hn_subjects():
         res = client.post("/api/exams/generate-120", json_data={
             "title": f"Đề Tham Khảo SPT ĐH Sư Phạm Hà Nội - Môn {name}",
             "theme": theme,
-            "mode": mode,
-            "role": "admin"
+            "mode": mode
         })
         assert res.status_code == 200, f"Lỗi POST /api/exams/generate-120: {res.status_code}"
         res_data = res.json()
